@@ -1,6 +1,6 @@
-# Observabilidade dos Pipelines
+# Observabilidade dos pipelines de dados
 
-Estratégia de observabilidade para os pipelines de ingestão (Airflow) e transformação (dbt) do `data-application-gov-hub`. O objetivo é reduzir falhas silenciosas, diminuir o tempo de detecção e resolução de problemas (MTTR) e aumentar a confiabilidade operacional.
+Este documento define a estratégia de observabilidade para os pipelines de ingestão (Airflow) e transformação (dbt) do projeto. O objetivo é reduzir falhas silenciosas, diminuir o tempo de detecção e resolução de problemas (MTTR) e aumentar a confiabilidade operacional.
 
 ---
 
@@ -12,9 +12,11 @@ Estratégia de observabilidade para os pipelines de ingestão (Airflow) e transf
 
 ---
 
-## Padrão de logging
+## Padrão de logging existente
 
-### Convenções
+O projeto já adota um padrão consistente de logging nas DAGs. Ele deve ser seguido em todas as novas implementações.
+
+### Convenções estabelecidas
 
 **Prefixo com nome do arquivo em todas as mensagens:**
 
@@ -27,15 +29,17 @@ Isso permite filtrar logs por DAG mesmo em ambientes onde múltiplas DAGs rodam 
 **Níveis de log por situação:**
 
 | Situação | Nível | Exemplo |
-|----------|-------|---------|
-| Início de operação | `INFO` | `"[dag.py] Iniciando extração de deputados"` |
-| Progresso com volume | `INFO` | `"[dag.py] Inserindo 513 deputados no schema camara_deputados"` |
-| Conclusão com total | `INFO` | `"[dag.py] Concluído. Total de 513 registros processados."` |
-| Dado ausente / vazio | `WARNING` | `"[dag.py] Nenhum deputado encontrado"` |
+|---|---|---|
+| Início de operação | `INFO` | `"[deputados_ingest_dag.py] Iniciando extração de deputados"` |
+| Progresso com volume | `INFO` | `"[deputados_ingest_dag.py] Inserindo 513 deputados no schema camara_deputados"` |
+| Conclusão com total | `INFO` | `"[deputados_ingest_dag.py] Concluído. Total de 513 registros processados."` |
+| Dado ausente / vazio | `WARNING` | `"[deputados_ingest_dag.py] Nenhum deputado encontrado"` |
 | Tipo inesperado / dado inválido | `ERROR` | `"Esperava uma lista, mas recebi: <class 'dict'>"` |
 | Detalhe de item individual | `DEBUG` | `"Filiação processada: Nome -> Partido (2020)"` |
 
 **Informar volume processado:**
+
+Sempre logar quantos registros foram processados antes e depois de operações críticas (deduplicação, inserção):
 
 ```python
 logging.info(f"[dag.py] Total de {len(registros)} registros coletados da API.")
@@ -45,6 +49,8 @@ logging.info(f"[dag.py] Inserindo {len(registros_unicos)} registros no schema X.
 
 **Logar estado inesperado como ERROR antes de retornar:**
 
+Quando a DAG recebe dados em formato inesperado, logar como `ERROR` e retornar — não levantar exceção silenciosa:
+
 ```python
 if not lista or not isinstance(lista, list):
     logging.error(f"Esperava uma lista, mas recebi: {type(lista)}")
@@ -53,9 +59,24 @@ if not lista or not isinstance(lista, list):
 
 **Usar DEBUG para detalhes de iteração:**
 
+Logs de itens individuais dentro de loops devem usar `DEBUG` para não poluir os logs em execuções normais:
+
 ```python
 logging.debug(f"[dag.py] Item processado: {nome} -> {valor}")
 ```
+
+---
+
+## Múltiplas conexões PostgreSQL
+
+O projeto usa conexões nomeadas distintas por domínio. Sempre especificar o `conn_id` correto ao chamar `get_postgres_conn()`:
+
+| Conn ID | Domínio |
+|---|---|
+| `postgres_default` | Dados gerais / IPEA |
+| `postgres_mir` | Dados do MIR (parlamentares, emendas, transferências) |
+
+Usar a conexão errada não gera erro imediato mas insere dados no banco errado. Sempre verificar qual `conn_id` o domínio usa antes de implementar uma nova DAG.
 
 ---
 
@@ -64,7 +85,7 @@ logging.debug(f"[dag.py] Item processado: {nome} -> {valor}")
 ### Airflow (por DAG)
 
 | Métrica | Descrição | Threshold de atenção |
-|---------|-----------|---------------------|
+|---|---|---|
 | Duração da execução | Tempo total da DAG run | Desvio > 50% da média histórica |
 | Taxa de falha | % de runs com status `failed` | > 0% em DAGs críticas |
 | Número de retries | Reexecuções de uma task | > 1 por execução |
@@ -73,7 +94,7 @@ logging.debug(f"[dag.py] Item processado: {nome} -> {valor}")
 ### dbt (por execução)
 
 | Métrica | Descrição |
-|---------|-----------|
+|---|---|
 | Testes com falha | Modelos com `not_null`, `unique`, etc. quebrados |
 | Tempo de execução por modelo | Identificar modelos ficando mais lentos |
 | Freshness das sources | Tabelas de origem desatualizadas além do esperado |
@@ -82,9 +103,7 @@ logging.debug(f"[dag.py] Item processado: {nome} -> {valor}")
 
 ## Alertas
 
-### Implementação recomendada
-
-O projeto ainda não tem callbacks de falha implementados nas DAGs. A implementação é recomendada para DAGs críticas usando `on_failure_callback`:
+O projeto ainda não tem callbacks de falha implementados nas DAGs. A implementação é recomendada para DAGs críticas usando `on_failure_callback` nos `default_args`:
 
 ```python
 import logging
@@ -107,45 +126,42 @@ default_args = {
 }
 ```
 
-### Classificação dos alertas
+### O que deve gerar alerta
 
-**Crítico — resposta imediata:**
-
+**Crítico (resposta imediata):**
 - Falha de DAG de ingestão principal (siafi, siape, compras_gov, transfere_gov)
 - Quebra de teste dbt em modelo gold
 - DAG não executada no schedule esperado
 
-**Atenção — resposta no dia:**
-
+**Atenção (resposta no dia):**
 - Retries acima do normal em qualquer DAG
 - Queda significativa no volume ingerido
 - Falha de teste dbt em modelo silver
 - Tempo de execução muito acima da média
 
-**Informativo — sem ação imediata:**
-
+**Informativo (sem ação imediata):**
 - Conclusão bem-sucedida de DAGs de longa duração
 - Relatório diário de execuções
 
 ### Canais de alerta
 
-!!! warning "A definir"
-    Os canais de alerta (Slack, Discord, e-mail, webhooks) ainda precisam ser definidos com a equipe. A implementação do `on_failure_callback` deve aguardar essa decisão para evitar retrabalho.
+O projeto já possui infraestrutura de e-mail via IMAP em `plugins/cliente_email.py`, usada atualmente para ingestão de dados do Tesouro Gerencial (busca de CSVs anexados em e-mails). Essa mesma infraestrutura pode ser reaproveitada para envio de alertas de falha via e-mail, sem necessidade de instalar nenhuma dependência adicional.
+
+Outras opções a avaliar com o time: Slack, Discord, webhooks.
 
 ---
 
-## Ferramentas
+## Ferramentas avaliadas
 
 | Ferramenta | Papel | Status |
-|------------|-------|--------|
+|---|---|---|
 | **Airflow Metrics** | Métricas nativas de DAGs e tasks | Disponível nativamente |
 | **Prometheus** | Coleta e armazenamento de métricas | A avaliar |
 | **Grafana** | Dashboards de observabilidade | A avaliar |
 | **OpenTelemetry** | Rastreamento distribuído | A avaliar |
 | **Sentry** | Rastreamento de erros e exceções | A avaliar |
 
-!!! note
-    A decisão de quais ferramentas adotar deve ser validada com a equipe de infraestrutura antes da implementação.
+A decisão de quais ferramentas adotar deve ser validada com a equipe de infraestrutura antes da implementação.
 
 ---
 

@@ -1,12 +1,12 @@
-# Padrões de Engenharia de Dados
+# Padrões de engenharia de dados
 
-Convenções para desenvolvimento no `data-application-gov-hub`, cobrindo DAGs do Airflow e modelos SQL/dbt. O objetivo é garantir consistência, rastreabilidade e facilidade de manutenção em um repositório com múltiplas origens de dados e times contribuindo simultaneamente.
+Este documento define as convenções para desenvolvimento no projeto, cobrindo DAGs do Airflow e modelos SQL/dbt. O objetivo é garantir consistência, rastreabilidade e facilidade de manutenção em um repositório com múltiplas origens de dados e times contribuindo simultaneamente.
 
 ---
 
-## DAGs do Airflow
+## Padrões para DAGs do Airflow
 
-### Nomenclatura
+### Convenção de nomenclatura
 
 O nome da DAG segue o formato:
 
@@ -15,7 +15,7 @@ O nome da DAG segue o formato:
 ```
 
 | Segmento | Descrição | Exemplos |
-|----------|-----------|---------|
+|---|---|---|
 | `origem` | Sistema de origem dos dados | `siafi`, `siape`, `compras_gov`, `transfere_gov`, `pncp` |
 | `dominio` | Entidade ou tema principal | `execucao_orcamentaria`, `contratos`, `servidores` |
 | `acao` | O que a DAG faz | `ingestao`, `transformacao`, `snapshot` |
@@ -54,7 +54,7 @@ Novas origens ganham uma pasta própria dentro de `data_ingest/`. Não criar DAG
 
 ### Estilo de código — TaskFlow API
 
-O projeto usa a **TaskFlow API** (`@dag` e `@task`). Não usar o estilo clássico com `with DAG(...)`.
+O projeto usa a **TaskFlow API** do Airflow (`@dag` e `@task`). Não usar o estilo clássico com `with DAG(...)`.
 
 ```python
 from airflow.decorators import dag, task
@@ -87,7 +87,7 @@ dag_instance = origem_dominio_acao()
 
 ### Schedule dinâmico
 
-O schedule é definido via `get_dynamic_schedule()`, importado de `schedule_loader.py`. Não usar strings de cron ou aliases do Airflow diretamente no código da DAG.
+O schedule de todas as DAGs de ingestão é definido via `get_dynamic_schedule()`, importado de `schedule_loader.py`. Não usar strings de cron ou aliases do Airflow diretamente no código da DAG.
 
 ```python
 from schedule_loader import get_dynamic_schedule
@@ -98,7 +98,7 @@ from schedule_loader import get_dynamic_schedule
 )
 ```
 
-A função lê a Airflow Variable `dynamic_schedules` (JSON) e retorna o schedule configurado. Se não houver configuração, retorna `@daily` por padrão.
+O `get_dynamic_schedule()` lê a Airflow Variable `dynamic_schedules` (JSON) e retorna o schedule configurado para aquela DAG. Se não houver configuração, retorna `@daily` por padrão.
 
 **Formato da Variable `dynamic_schedules`:**
 
@@ -119,7 +119,7 @@ A função lê a Airflow Variable `dynamic_schedules` (JSON) e retorna o schedul
 }
 ```
 
-Tipos suportados: `preset` (aliases do Airflow), `cron` (expressão cron), `timedelta` (campos aceitos pelo `timedelta` do Python).
+Tipos suportados: `preset` (aliases do Airflow como `@daily`), `cron` (expressão cron), `timedelta` (objeto com campos aceitos pelo `timedelta` do Python).
 
 ---
 
@@ -128,32 +128,29 @@ Tipos suportados: `preset` (aliases do Airflow), `cron` (expressão cron), `time
 ```python
 default_args = {
     "owner": "nome-do-responsavel",  # nome da pessoa ou time responsável
-    "retries": 1,                    # DAGs de ingestão
+    "retries": 1,
     "retry_delay": timedelta(minutes=5),
 }
 ```
 
-DAGs dbt (Cosmos) usam `retries=2`.
-
-!!! note "Owner"
-    Use o nome de quem é responsável pela manutenção da DAG. Não deixar em branco.
+> **Nota sobre owner:** use o nome de quem é responsável pela manutenção daquela DAG. Não deixar em branco.
 
 ---
 
 ### Tags
 
-Toda DAG deve declarar ao menos as tags de **origem** e **domínio**. Tags de camada são recomendadas quando aplicável.
+Toda DAG deve declarar ao menos as tags de **origem** e **domínio**. Tags de camada (`bronze`, `silver`, `gold`) são recomendadas quando aplicável.
 
 ```python
-tags=["siafi", "nota_empenho"]            # mínimo
-tags=["siafi", "nota_empenho", "bronze"]  # recomendado para DAGs de ingestão
+tags=["siafi", "nota_empenho"]           # mínimo
+tags=["siafi", "nota_empenho", "bronze"] # recomendado para DAGs de ingestão
 ```
 
 ---
 
 ### Params para backfill
 
-DAGs que suportam reprocessamento histórico devem declarar `params` com `Param`:
+DAGs que suportam reprocessamento histórico devem declarar `params` com `Param`, documentando tipo e descrição:
 
 ```python
 from airflow.models.param import Param
@@ -174,7 +171,7 @@ params={
 },
 ```
 
-Dentro da task, acessar via `context["params"]` com fallback para o ano corrente:
+Dentro da task, acessar via `context["params"]` e sempre definir fallback para o ano corrente:
 
 ```python
 params = context["params"]
@@ -186,13 +183,15 @@ ano_fim = params.get("ano_fim") or datetime.now().year
 
 ### Airflow Variables
 
+O projeto usa três Airflow Variables principais:
+
 | Variable | Tipo | Descrição |
-|----------|------|-----------|
+|---|---|---|
 | `dynamic_schedules` | JSON | Schedules por `dag_id`. Lida por `get_dynamic_schedule()`. |
 | `airflow_orgao` | string | Código do órgão alvo para ingestão. |
 | `airflow_variables` | YAML | Configurações por órgão (ex: `codigos_ug`). |
 
-Sempre validar se as variáveis críticas existem antes de prosseguir:
+Sempre validar se as variáveis críticas foram encontradas antes de prosseguir:
 
 ```python
 from airflow.models import Variable
@@ -211,33 +210,27 @@ ugs_emitentes = orgaos_config.get(orgao_alvo, {}).get("codigos_ug", [])
 
 ### Conexão com PostgreSQL
 
-Usar sempre `get_postgres_conn()` de `helpers/postgres_helpers.py`. Não construir strings de conexão manualmente.
+Usar sempre `get_postgres_conn()` de `helpers/postgres_helpers.py`, que resolve a conexão via `PostgresHook` do Airflow. Não construir strings de conexão manualmente.
 
 ```python
 from postgres_helpers import get_postgres_conn
 from cliente_postgres import ClientPostgresDB
 
-postgres_conn_str = get_postgres_conn()                # usa "postgres_default"
-postgres_conn_str = get_postgres_conn("postgres_mir")  # conn_id customizado
+postgres_conn_str = get_postgres_conn()               # usa "postgres_default"
+postgres_conn_str = get_postgres_conn("outro_conn_id") # conn_id customizado
 db = ClientPostgresDB(postgres_conn_str)
 ```
 
-| Conn ID | Domínio |
-|---------|---------|
-| `postgres_default` | Dados gerais / IPEA |
-| `postgres_mir` | Dados do MIR (parlamentares, emendas, transferências) |
-
-!!! warning
-    Usar o `conn_id` errado não gera erro imediato, mas insere dados no banco errado. Sempre verificar qual conexão o domínio usa.
+As credenciais são gerenciadas pelas **Airflow Connections**, não por variáveis de ambiente diretamente no código.
 
 ---
 
-### Plugins e helpers
+### Uso de plugins e helpers
 
-Sempre reaproveitar os clientes em `plugins/` e helpers em `helpers/`. Não reimplementar lógica de conexão ou requisição dentro da DAG.
+Os clientes em `plugins/` e os helpers em `helpers/` devem ser sempre reaproveitados. Não reimplementar lógica de conexão ou requisição dentro da DAG.
 
 | Necessidade | O que usar |
-|-------------|------------|
+|---|---|
 | Conexão com PostgreSQL | `get_postgres_conn()` + `ClientPostgresDB` |
 | Requisições com retry | `retry_helpers.py` |
 | APIs externas | `cliente_<origem>.py` correspondente |
@@ -279,7 +272,7 @@ Sempre reaproveitar os clientes em `plugins/` e helpers em `helpers/`. Não reim
 
 ## DAGs dbt com Cosmos
 
-Os projetos dbt (`ipea`, `mir`) são orquestrados via **Astronomer Cosmos**, que converte os modelos dbt em tasks do Airflow automaticamente.
+Os projetos dbt (`ipea`, `mir`) são orquestrados pelo Airflow via **Astronomer Cosmos**, que converte os modelos dbt em tasks do Airflow automaticamente. O padrão é idêntico entre os dois projetos.
 
 ### Estrutura padrão
 
@@ -289,6 +282,7 @@ from datetime import datetime
 from cosmos import DbtDag, ProjectConfig, ProfileConfig, ExecutionConfig
 from cosmos.constants import DBT_LOG_PATH_ENVVAR
 
+# Configurar diretório de logs do dbt
 dbt_log_path = "/tmp/dbt_logs"  # NOSONAR
 os.makedirs(dbt_log_path, exist_ok=True)
 os.environ[DBT_LOG_PATH_ENVVAR] = dbt_log_path
@@ -305,7 +299,7 @@ my_cosmos_dag = DbtDag(
     execution_config=ExecutionConfig(
         dbt_executable_path=f"{os.environ['AIRFLOW_REPO_BASE']}/.local/bin/dbt",
     ),
-    schedule_interval="0 1 * * *",
+    schedule_interval="0 1 * * *",  # diariamente à 01:00
     start_date=datetime(2025, 1, 1),
     catchup=False,
     dag_id="<projeto>_cosmos_dag",
@@ -316,16 +310,18 @@ my_cosmos_dag = DbtDag(
 ### Pontos de atenção
 
 - Caminhos resolvidos via `AIRFLOW_REPO_BASE` — não usar caminhos absolutos hardcodados.
-- `target_name="prod"` aponta para o perfil de produção. Para testes locais, alterar para o target local no `profiles.yml`.
-- DAGs Cosmos **não usam** `get_dynamic_schedule()` — o schedule é cron direto.
-- `retries=2` é o padrão (diferente do `retries=1` das DAGs de ingestão).
-- O comentário `# NOSONAR` no `dbt_log_path` é intencional. Manter ao copiar o template.
+- `target_name="prod"` aponta para o perfil de produção no `profiles.yml`. Para rodar localmente, alterar para o target local antes de testar.
+- DAGs Cosmos **não usam** `get_dynamic_schedule()` — o schedule é cron direto, pois o Cosmos gerencia o ciclo de vida da DAG de forma diferente.
+- `retries=2` é o padrão para DAGs dbt (diferente do `retries=1` das DAGs de ingestão).
+- O comentário `# NOSONAR` no `dbt_log_path` é intencional — suprime alerta de análise estática para aquela linha. Manter ao copiar o template.
 
 ---
 
 ## Padrões SQL e dbt
 
 ### Estrutura de camadas
+
+O projeto adota a arquitetura medallion. Cada domínio tem sua própria pasta com as camadas que forem necessárias:
 
 ```
 models/
@@ -340,17 +336,23 @@ Não criar modelos fora dessa estrutura.
 
 ---
 
-### Nomenclatura
+### Convenção de nomenclatura
 
 **Prefixos por camada:**
 
 | Camada | Prefixo | Exemplo |
-|--------|---------|---------|
+|---|---|---|
 | Bronze | `brz_` | `brz_contratos` |
 | Silver | `slv_` | `slv_contratos_empenhos` |
 | Gold | `gld_` | `gld_contratos_resumo` |
 
-O nome do arquivo `.sql` deve ser idêntico ao nome do modelo. Usar sempre `snake_case`.
+O nome do arquivo `.sql` deve ser idêntico ao nome do modelo (sem extensão).
+
+**Regras gerais:**
+
+- Sempre usar `snake_case` para nomes de modelos, colunas e aliases.
+- Nomes de modelos devem ser descritivos e únicos dentro do projeto.
+- Evitar abreviações que não sejam amplamente conhecidas no domínio (`nc` para nota de crédito é aceitável; abreviações inventadas não são).
 
 ---
 
@@ -358,7 +360,10 @@ O nome do arquivo `.sql` deve ser idêntico ao nome do modelo. Usar sempre `snak
 
 **Keywords em lowercase:**
 
+O projeto usa keywords em **lowercase**. Manter consistência com os modelos existentes.
+
 ```sql
+-- correto (padrão do projeto)
 select
     id_contrato,
     valor_total
@@ -366,9 +371,13 @@ from {{ ref('brz_contratos') }}
 where situacao = 'ATIVO'
 ```
 
-**Sem `SELECT *` em modelos finais** — aceitável em CTEs intermediárias, mas o `select` final deve listar colunas explicitamente.
+**Sem SELECT \* em modelos finais:**
+
+`select *` é aceitável dentro de CTEs intermediárias, mas o `select` final deve listar as colunas explicitamente.
 
 **CTEs nomeadas semanticamente:**
+
+Usar CTEs para organizar a lógica em etapas legíveis. Nomear cada CTE de acordo com o que ela representa.
 
 ```sql
 with
@@ -395,21 +404,36 @@ select
 from dados_enriquecidos
 ```
 
-**Joins explícitos** — nunca usar joins implícitos via vírgula no `from`.
+**Joins explícitos:**
 
-**Indentação** — 4 espaços por nível (não tabs), cada coluna em sua própria linha, vírgulas no início da linha nos `select` finais.
+Sempre declarar o tipo do join. Nunca usar joins implícitos via vírgula no `from`.
+
+```sql
+-- correto
+from tabela_a a
+left join tabela_b b on a.id = b.id_ref
+
+-- incorreto
+from tabela_a a, tabela_b b where a.id = b.id_ref
+```
+
+**Indentação:**
+
+- 4 espaços por nível (não usar tabs).
+- Cada coluna em sua própria linha.
+- Vírgulas no início da linha nos `select` finais.
 
 ---
 
 ### Campo `dt_ingest`
 
-Todo modelo deve propagar o campo `dt_ingest`. Em modelos com múltiplas fontes, usar `greatest()`:
+Todo modelo deve propagar o campo `dt_ingest`, representando a data/hora mais recente de ingestão das tabelas fonte utilizadas. Em modelos que combinam múltiplas fontes, usar `greatest()`:
 
 ```sql
-greatest(se.dt_ingest_ph, se.dt_ingest_df, sd.dt_ingest) as dt_ingest
+greatest(se.dt_ingest_ph, se.dt_ingest_df, se.dt_ingest_du, sd.dt_ingest) as dt_ingest
 ```
 
-Descrição padrão no `schema.yml`:
+A descrição padrão do campo no `schema.yml`:
 
 ```yaml
 - name: dt_ingest
@@ -420,12 +444,12 @@ Descrição padrão no `schema.yml`:
 
 ---
 
-### Macros disponíveis
+### Uso de macros
 
-Consultar `macros/` antes de implementar lógica customizada:
+O projeto possui macros reutilizáveis em `macros/`. Consultar antes de implementar lógica customizada:
 
 | Macro | Uso |
-|-------|-----|
+|---|---|
 | `safe_casts.sql` | Casts seguros com tratamento de nulos |
 | `parse_financial_value.sql` | Normalização de valores financeiros |
 | `data_quality/row_count_match.sql` | Validação de contagem entre camadas |
@@ -438,7 +462,9 @@ Consultar `macros/` antes de implementar lógica customizada:
 
 ### Schema.yml — documentação e testes
 
-Todo modelo deve ter entrada no `schema.yml` com `description` preenchida. Para silver e gold, documentar também as colunas principais.
+Todo modelo deve ter entrada no `schema.yml` da sua camada com `description` preenchida. Para silver e gold, documentar também as colunas principais.
+
+**Estrutura padrão:**
 
 ```yaml
 version: 2
@@ -460,13 +486,12 @@ models:
           das tabelas fonte utilizadas neste modelo.
 ```
 
-!!! note "Tags de camada"
-    As tags `bronze`, `silver`, `gold` são declaradas no `schema.yml` dentro de `meta.tags`, não na DAG.
+> **Nota sobre tags:** as tags de camada (`bronze`, `silver`, `gold`) são declaradas no `schema.yml` dentro do bloco `meta.tags`, não na DAG. Manter consistência com os modelos existentes.
 
 **Testes mínimos por camada:**
 
 | Teste | Bronze | Silver | Gold |
-|-------|--------|--------|------|
+|---|---|---|---|
 | `not_null` em PKs | obrigatório | obrigatório | obrigatório |
 | `unique` em PKs | recomendado | obrigatório | obrigatório |
 | `relationships` em FKs | — | obrigatório | recomendado |
@@ -476,8 +501,8 @@ models:
 
 ### Seeds e snapshots
 
-- **Seeds** (`seeds/`) são CSVs de referência estática. Não usar para dados que mudam com frequência.
-- **Snapshots** (`snapshots/`) capturam histórico de mudanças. Documentar a estratégia (timestamp ou check) no arquivo `yml`.
+- **Seeds** (`seeds/`) são arquivos CSV de referência estática (ex: `estados_brasil.csv`, `partidos_map.csv`). Não usar seeds para dados que mudam com frequência.
+- **Snapshots** (`snapshots/`) capturam o histórico de mudanças de tabelas mutáveis. Documentar a estratégia de snapshot (timestamp ou check) no próprio arquivo `yml`.
 
 ---
 
@@ -485,11 +510,11 @@ models:
 
 - [ ] Nome segue o prefixo da camada (`brz_`, `slv_`, `gld_`)
 - [ ] Modelo está no diretório correto dentro de `<dominio>_dbt/<camada>/`
-- [ ] `schema.yml` com `description` e `meta.tags` preenchidos
-- [ ] Colunas principais documentadas
-- [ ] `dt_ingest` propagado com descrição padrão
+- [ ] `schema.yml` existe com `description` e `meta.tags` preenchidos
+- [ ] Colunas principais documentadas no `schema.yml`
+- [ ] `dt_ingest` propagado e com descrição padrão
 - [ ] `select` final lista colunas explicitamente
-- [ ] Keywords em lowercase, indentação com 4 espaços
+- [ ] Keywords em lowercase e indentação com 4 espaços
 - [ ] CTEs nomeadas semanticamente
 - [ ] Joins explícitos
 - [ ] Macros existentes aproveitadas onde aplicável
