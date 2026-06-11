@@ -82,13 +82,13 @@ Só é necessário rodar uma vez. Rode novamente se houver mudanças nas depend�
 ## 4. Subir os serviços
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 Na primeira execução o Docker baixará as imagens necessárias, o que pode levar alguns minutos. Para acompanhar os logs:
 
 ```bash
-docker-compose logs -f
+docker compose logs -f
 ```
 
 O Airflow sobe em modo `standalone` localmente — um único container em vez de múltiplos (webserver, scheduler, worker separados). Isso acelera a inicialização no ambiente de desenvolvimento.
@@ -103,6 +103,8 @@ O Airflow sobe em modo `standalone` localmente — um único container em vez de
 | Apache Superset | http://localhost:8088 | `admin` / `admin` |
 | Jupyter Lab | http://localhost:8888 | sem autenticação |
 | PostgreSQL | `localhost:5432` | `postgres` / `postgres` |
+
+> As credenciais da tabela são apenas para o ambiente local criado pelo Docker Compose. Ambientes compartilhados devem usar credenciais próprias e mecanismo de secrets.
 
 > **Nota sobre o PostgreSQL:** um único servidor Postgres serve todos os bancos do ambiente — Airflow (`postgres`), Superset (`superset`) e Data Warehouse. O script `docker/postgres/init.sh` cria automaticamente três bancos na primeira inicialização: `airflow`, `superset` e `data_warehouse`.
 
@@ -160,7 +162,7 @@ O projeto exige que todos os commits sejam assinados com GPG.
 
 ```bash
 gpg --full-generate-key
-# Escolha: RSA, 4096 bits, mesmo e-mail da conta GitLab
+# Escolha: RSA, 4096 bits, mesmo e-mail da conta usada no GitHub ou GitLab
 ```
 
 **2. Obter o ID da chave:**
@@ -177,11 +179,11 @@ git config --global user.signingkey SUA_KEY_ID
 git config --global commit.gpgsign true
 ```
 
-**4. Exportar e adicionar ao GitLab:**
+**4. Exportar e adicionar à plataforma do repositório:**
 
 ```bash
 gpg --armor --export SUA_KEY_ID
-# Copie a saída e cole em: GitLab > Preferences > GPG Keys
+# Copie a saída e cadastre a chave GPG no GitHub ou GitLab usado pelo repositório
 ```
 
 ---
@@ -227,7 +229,7 @@ Se tiver múltiplas versões instaladas, use `pyenv` para garantir o Python 3.11
 **dbt debug retorna erro de conexão**
 
 Verifique se:
-1. O container do PostgreSQL está rodando: `docker-compose ps`
+1. O container do PostgreSQL está rodando: `docker compose ps`
 2. As credenciais no `profiles.yml` batem com `POSTGRES_USER` e `POSTGRES_PASSWORD` do `.env`
 3. Está apontando para `localhost:5432`
 

@@ -6,10 +6,8 @@ Plataforma de governança e catalogação de dados do GovHub BR.
 
 OpenMetadata fornece catálogo de dados, linhagem e ownership para garantir que os dados do GovHub são descobríveis, rastreáveis e confiáveis.
 
-!!! info "Status atual"
-    OpenMetadata está deployed com **configuração parcial**: catálogo básico funcional,
-    linhagem via dbt operacional. Owners e domínios por fork ainda precisam ser completados
-    via repositório de governança declarativa.
+!!! info "Status a confirmar"
+    O repositório de governança declarativa é a referência para catálogo, owners, domínios e classificações. Antes de depender de um recurso específico em produção, confirme com a equipe responsável se ele já está habilitado no ambiente alvo.
 
 ## Funcionalidades
 
@@ -42,7 +40,7 @@ graph LR
     D --> E[Superset: Dashboard Transferências]
 ```
 
-OpenMetadata captura essa linhagem automaticamente via integração com dbt e Airflow.
+Quando a integração está habilitada, OpenMetadata captura linhagem via dbt e Airflow.
 
 ## Configuração Declarativa
 
@@ -77,7 +75,7 @@ Itens pendentes para configuração completa:
 | Tags de sensibilidade | ❌ Pendente | Classificar dados Siape/Siafi |
 | Testes de qualidade | ⚠️ Parcial | Configurar ingestion de resultados dbt test |
 
-Para adicionar owners e domínios, editar o repo [`openmetadata-declarative-governance`](https://github.com/GovHub-br/openmetadata-declarative-governance) seguindo o padrão abaixo e fazer push para main (Argo CD aplica automaticamente).
+Para adicionar owners e domínios, edite o repo [`openmetadata-declarative-governance`](https://github.com/GovHub-br/openmetadata-declarative-governance) seguindo o padrão abaixo e use o fluxo de revisão/deploy adotado pelo time.
 
 ## Referências
 

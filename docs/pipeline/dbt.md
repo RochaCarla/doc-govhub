@@ -1,191 +1,137 @@
-# dbt (Data Build Tool)
+# dbt
 
-Transformação de dados da camada Bronze (MinIO) para Silver e Gold (PostgreSQL).
+O dbt transforma e documenta os dados analíticos do GovHub BR. No repositório principal, os projetos dbt ficam dentro do Airflow, em `airflow_lappis/dags/dbt/`, para serem orquestrados pelo Astronomer Cosmos.
 
-## Visão Geral
+## Projetos atuais
 
-O dbt é responsável por:
+| Projeto | Caminho | Domínios principais |
+| --- | --- | --- |
+| `ipea` | `airflow_lappis/dags/dbt/ipea` | contratos, pessoas, TED, orçamento, SisBolsas, metadados |
+| `mir` | `airflow_lappis/dags/dbt/mir` | emendas, dados abertos, SICONV, empenhos TED, metadados |
 
-1. Ler dados brutos do Bronze (via external sources)
-2. Limpar e normalizar → Silver
-3. Agregar e calcular métricas → Gold
-4. Testar qualidade em cada camada
+Cada projeto tem seu próprio `dbt_project.yml`, `profiles.yml`, `models/`, `macros/`, `seeds/` e, quando aplicável, `snapshots/`.
 
-## Estrutura de Models
-
-```
-dbt/
-├── models/
-│   ├── staging/           # Sources e staging
-│   │   ├── stg_transferegov.sql
-│   │   ├── stg_siape.sql
-│   │   ├── stg_siafi.sql
-│   │   ├── stg_comprasgov.sql
-│   │   └── stg_siorg.sql
-│   ├── silver/            # Dados limpos
-│   │   ├── transferencias.sql
-│   │   ├── servidores.sql
-│   │   ├── execucao_financeira.sql
-│   │   ├── contratos.sql
-│   │   └── orgaos.sql
-│   ├── gold/              # Métricas e fatos
-│   │   ├── fato_transferencias.sql
-│   │   ├── fato_servidores.sql
-│   │   ├── fato_compras.sql
-│   │   ├── dim_orgaos.sql
-│   │   └── dim_tempo.sql
-│   └── schema.yml         # Tests e documentação
-├── seeds/                 # Dados estáticos
-│   └── orgaos_referencia.csv
-├── macros/                # Funções reutilizáveis
-├── dbt_project.yml
-└── profiles.yml
+```text
+airflow_lappis/dags/dbt/
+  ipea/
+    models/
+      contratos_dbt/
+      pessoas_dbt/
+      ted_dbt/
+      orcamento_dbt/
+      sistema_sisbolsas/
+      metadata/
+    macros/
+    seeds/
+    snapshots/
+    cosmos_dag.py
+  mir/
+    models/
+      dados_abertos_dbt/
+      emendas_dbt/
+      empenhos_ted_dbt/
+      siconv_dbt/
+      metadata/
+    macros/
+    seeds/
+    tests/
+    cosmos_dag.py
 ```
 
-## Materializations
+## Orquestração com Cosmos
 
-| Camada | Materialization | Motivo |
-|--------|----------------|--------|
-| Staging | `view` | Leve, apenas transformação |
-| Silver | `table` | Performance em queries downstream |
-| Gold | `table` ou `incremental` | Performance + eficiência |
+Os projetos `ipea` e `mir` são executados por DAGs Cosmos:
 
-## Exemplo de Model
+| Projeto | DAG |
+| --- | --- |
+| `ipea` | `ipea_cosmos_dag` |
+| `mir` | `mir_cosmos_dag` |
 
-### Silver
+As DAGs resolvem os caminhos via `AIRFLOW_REPO_BASE`, apontando para os arquivos do projeto dentro do ambiente Airflow.
 
-```sql
--- models/silver/transferencias.sql
-
-{{ config(materialized='table', schema='silver') }}
-
-SELECT
-    id,
-    TRIM(nome_programa) AS nome_programa,
-    CAST(valor AS NUMERIC(15,2)) AS valor,
-    CAST(data_celebracao AS DATE) AS data_celebracao,
-    orgao_concedente,
-    orgao_convenente,
-    situacao,
-    NOW() AS loaded_at
-FROM {{ ref('stg_transferegov') }}
-WHERE id IS NOT NULL
-  AND valor > 0
+```python
+profile_config = ProfileConfig(
+    profiles_yml_filepath=f"{os.environ['AIRFLOW_REPO_BASE']}/dags/dbt/ipea/profiles.yml",
+    profile_name="ipea",
+    target_name="prod",
+)
 ```
 
-### Gold
+## Conexão PostgreSQL
 
-```sql
--- models/gold/fato_transferencias.sql
-
-{{ config(materialized='table', schema='gold') }}
-
-SELECT
-    d.orgao_concedente,
-    DATE_TRUNC('month', t.data_celebracao) AS mes,
-    COUNT(*) AS total_transferencias,
-    SUM(t.valor) AS valor_total,
-    AVG(t.valor) AS valor_medio
-FROM {{ ref('transferencias') }} t
-LEFT JOIN {{ ref('dim_orgaos') }} d ON t.orgao_concedente = d.codigo
-GROUP BY 1, 2
-```
-
-## Testes
-
-### Schema Tests (schema.yml)
+Os `profiles.yml` atuais usam variáveis de ambiente com defaults locais:
 
 ```yaml
-models:
-  - name: transferencias
-    columns:
-      - name: id
-        tests:
-          - not_null
-          - unique
-      - name: valor
-        tests:
-          - not_null
-      - name: data_celebracao
-        tests:
-          - not_null
-
-  - name: fato_transferencias
-    columns:
-      - name: orgao_concedente
-        tests:
-          - relationships:
-              to: ref('dim_orgaos')
-              field: codigo
+ipea:
+  target: prod
+  outputs:
+    prod:
+      type: postgres
+      host: "{{ env_var('DB_DW_HOST', 'postgres') }}"
+      user: "{{ env_var('DB_DW_USER', 'postgres_dw') }}"
+      password: "{{ env_var('DB_DW_PASSWORD', 'postgres_dw') }}"
+      port: "{{ env_var('DB_DW_PORT', '5432') | int }}"
+      dbname: "{{ env_var('DB_DW_DBNAME', 'data_warehouse') }}"
+      schema: "{{ env_var('DB_DW_SCHEMA', 'ipea') }}"
 ```
 
-### Custom Tests
+O projeto `mir` segue o mesmo padrão, com variáveis `DB_DW_*_MIR`.
 
-```sql
--- tests/assert_valor_positivo.sql
-SELECT *
-FROM {{ ref('transferencias') }}
-WHERE valor <= 0
+## Camadas e organização
+
+Cada domínio organiza seus modelos por camadas quando aplicável:
+
+```text
+models/<dominio>_dbt/
+  bronze/
+  silver/
+  gold/
+  views/
+  schema.yml
 ```
 
-## Comandos
+Nem todo domínio possui todas as camadas. Ao criar modelos novos, siga a estrutura existente do domínio mais próximo.
+
+## Macros importantes
+
+| Macro | Uso |
+| --- | --- |
+| `safe_casts.sql` | conversões seguras de tipos |
+| `parse_financial_value.sql` | normalização de valores financeiros |
+| `data_quality/row_count_match.sql` | verificação de contagem entre camadas |
+| `data_quality/verificacao_tipagem.sql` | validação de tipos |
+| `metadata/generate_metadata.sql` | geração de metadados de modelos |
+| `udfs/f_parse_dates.sql` | parse de datas |
+| `udfs/f_format_nc.sql` | formatacao de notas de credito |
+
+## Comandos úteis
+
+Execute os comandos dentro do projeto alterado:
 
 ```bash
-# Executar todos os models
-dbt run
+cd airflow_lappis/dags/dbt/ipea
 
-# Executar apenas Gold
-dbt run --select gold.*
-
-# Rodar testes
-dbt test
-
-# Gerar documentação
+dbt debug
+dbt run --select <modelo_ou_dominio>
+dbt test --select <modelo_ou_dominio>
 dbt docs generate
 dbt docs serve
-
-# Full refresh (recriar tabelas)
-dbt run --full-refresh
 ```
 
-## Configuração
+Para validar o repositório inteiro pelo Makefile:
 
-### profiles.yml
-
-```yaml
-govhub:
-  target: dev
-  outputs:
-    dev:
-      type: postgres
-      host: localhost
-      port: 5432
-      user: govhub
-      password: "{{ env_var('POSTGRES_PASSWORD') }}"
-      dbname: govhub
-      schema: public
-      threads: 4
+```bash
+make lint
+make test
 ```
 
-### dbt_project.yml
+## Critérios para PRs dbt
 
-```yaml
-name: govhub
-version: '1.0.0'
+- Modelo no domínio e camada corretos.
+- `schema.yml` atualizado com descrição de modelo e colunas principais.
+- Testes `not_null`, `unique`, `relationships` ou `accepted_values` quando fizerem sentido.
+- Campo `dt_ingest` propagado quando o modelo depender de tabelas ingeridas.
+- `select` final sem `select *` em modelos finais.
+- Macros existentes reaproveitadas antes de criar lógica nova.
 
-model-paths: ["models"]
-seed-paths: ["seeds"]
-test-paths: ["tests"]
-macro-paths: ["macros"]
-
-models:
-  govhub:
-    staging:
-      +materialized: view
-    silver:
-      +materialized: table
-      +schema: silver
-    gold:
-      +materialized: table
-      +schema: gold
-```
+Veja também [Padrões de engenharia](padroes-engenharia.md) e [Qualidade de dados](qualidade.md).

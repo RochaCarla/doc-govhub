@@ -1,10 +1,10 @@
 # MinIO
 
-Object storage S3-compatible para a camada Bronze (dados brutos) do GovHub BR.
+Object storage S3-compatible para dados brutos do GovHub BR quando a fonte ou o ambiente exigem persistência de arquivos.
 
 ## Papel na Arquitetura
 
-MinIO armazena os dados raw ingeridos pelo Airflow antes de qualquer transformação. Garante imutabilidade e reprodutibilidade do pipeline.
+MinIO pode armazenar dados raw ingeridos pelo Airflow antes de transformações. No projeto, algumas fontes usam PostgreSQL como destino principal; por isso, confirme o padrão da fonte antes de assumir que todo dado bruto passa por object storage.
 
 ```mermaid
 graph LR
@@ -13,7 +13,9 @@ graph LR
     PG --> DBT[dbt]
 ```
 
-## Buckets
+## Buckets de referência
+
+Os nomes abaixo são uma convenção de referência para organizar dados brutos por fonte. Confirme os buckets reais no ambiente antes de criar integrações novas.
 
 | Bucket | Conteúdo | Retenção |
 |--------|----------|----------|
@@ -46,6 +48,8 @@ Particionamento por data de execução para facilitar re-processamento.
 # Access Key: minioadmin
 # Secret Key: minioadmin
 ```
+
+Essas credenciais são apenas para desenvolvimento local. Em ambientes compartilhados, use Kubernetes Secrets ou o mecanismo de secret adotado pelo time.
 
 ### Código (Python)
 

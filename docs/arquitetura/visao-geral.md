@@ -88,12 +88,18 @@ graph TB
 
 | Repositório | Descrição |
 |-------------|-----------|
+| `gov-hub` | Site oficial e documentação pública do GovHub BR |
 | `data-application-gov-hub` | Pipeline principal (Airflow, dbt, Jupyter, Superset) |
 | `continuous-deployment` | Infra GitOps (K8s manifests, Helm, Argo CD) |
-| `gov-hub` | Site institucional |
+| `data-application-cidades` | Fork temático para dados municipais |
+| `data-application-minc` | Fork temático para o Ministério da Cultura |
+| `dados-desestruturados` | Processamento e experimentos com dados não estruturados |
 | `govhub-research` | Pesquisa: IA, OCR, parsers |
 | `openmetadata-declarative-governance` | Governança declarativa |
 | `data-governance-workshop` | Workshop Ranger + Trino |
+
+!!! note "Repositórios internos"
+    A organização também possui repositórios privados de apoio. Eles não são detalhados nesta documentação pública.
 
 ## Decisões Arquiteturais
 
@@ -107,6 +113,6 @@ graph TB
 
 | Ambiente | Descrição | Overlay |
 |----------|-----------|---------|
-| Local | Docker Compose (`docker-compose up -d`) | — |
+| Local | Docker Compose (`docker compose up -d`) | — |
 | Pré-produção | Cluster K8s (validação) | `values.preprod.yaml` |
 | Produção | Cluster K8s (GitOps) | `values.prod.yaml` |

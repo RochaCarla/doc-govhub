@@ -18,10 +18,6 @@ copyright: Lab Livre 2025
 theme:
   name: material
   language: pt-BR
-  palette:
-    - scheme: default
-      primary: indigo
-      accent: cyan
   features:
     - content.code.copy
     - content.code.annotate
@@ -72,7 +68,6 @@ extra_css:
 # Plugins
 plugins:
   - search:
-      lang: pt
       separator: '[\s\u200b\-_,:!=\[\]()"\\`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
 
 # Extensions
@@ -123,6 +118,7 @@ nav:
   - Onboarding:
     - Roteiro: onboarding/roteiro.md
     - Setup Local: onboarding/setup-local.md
+    - Setup Local Completo: onboarding/setup-local-data-application.md
     - Git Workflow: onboarding/git-workflow.md
     - Tutorial Airflow: onboarding/airflow-tutorial.md
     - Tutorial dbt: onboarding/dbt-tutorial.md
@@ -133,6 +129,9 @@ nav:
     - dbt: pipeline/dbt.md
     - Ingestão de Dados: pipeline/ingestao.md
     - Qualidade de Dados: pipeline/qualidade.md
+    - Observabilidade: pipeline/observabilidade.md
+    - Padrões de Engenharia: pipeline/padroes-engenharia.md
+    - Protocolo de PR: pipeline/protocolo-mr.md
   - Dicionário de Dados:
     - Visão Geral: dados/dicionario.md
     - TransfereGov: dados/transferegov.md
@@ -151,6 +150,11 @@ nav:
     - Deploy Inicial: adocao/deploy-inicial.md
     - Conectar Fontes: adocao/conectar-fontes.md
     - Fork Temático: adocao/fork-tematico.md
+    - Forks Temáticos:
+      - Visão Geral: forks/index.md
+      - Guia de Criação: forks/guia-criar-fork.md
+      - Cidades: forks/cidades.md
+      - MinC: forks/minc.md
   - Visualização:
     - Apache Superset: visualizacao/superset.md
     - JupyterHub: visualizacao/jupyterhub.md
@@ -158,6 +162,8 @@ nav:
     - OpenMetadata: governanca/openmetadata.md
     - Trino + Ranger: governanca/trino-ranger.md
     - Controle de Acesso: governanca/acesso.md
+    - Segurança: governanca/seguranca.md
   - Comunidade:
     - Contribuir: CONTRIBUTING.md
+    - Forks: comunidade/forks.md
     - Pesquisa: comunidade/pesquisa.md

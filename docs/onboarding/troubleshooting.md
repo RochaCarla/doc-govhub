@@ -6,18 +6,18 @@ Problemas comuns e soluções para o ambiente GovHub BR.
 
 ### Containers não sobem
 
-**Sintoma**: `docker-compose up -d` falha ou containers reiniciam.
+**Sintoma**: `docker compose up -d` falha ou containers reiniciam.
 
 **Soluções**:
 
 ```bash
 # Verificar logs
-docker-compose logs <service>
+docker compose logs <service>
 
 # Rebuild completo
-docker-compose down -v
-docker-compose build --no-cache
-docker-compose up -d
+docker compose down -v
+docker compose build --no-cache
+docker compose up -d
 
 # Verificar espaço em disco
 docker system df
@@ -45,15 +45,15 @@ kill -9 <PID>
 **Causas possíveis**:
 
 1. Erro de sintaxe no Python
-2. Arquivo fora de `airflow/dags/`
+2. Arquivo fora de `airflow_lappis/dags/`
 3. Import error
 
 **Solução**:
 
 ```bash
 # Testar DAG
-docker-compose exec airflow-webserver airflow dags list
-docker-compose exec airflow-webserver python /opt/airflow/dags/minha_dag.py
+docker compose exec airflow airflow dags list
+docker compose exec airflow python /opt/airflow/dags/minha_dag.py
 ```
 
 ### Task falha com connection error
@@ -73,10 +73,10 @@ docker-compose exec airflow-webserver python /opt/airflow/dags/minha_dag.py
 
 ```bash
 # Verificar se PostgreSQL está rodando
-docker-compose ps postgres
+docker compose ps postgres
 
 # Testar conexão
-psql -h localhost -p 5432 -U govhub -d govhub
+psql -h localhost -p 5432 -U postgres_dw -d data_warehouse
 ```
 
 ### Model falha com "relation does not exist"
@@ -111,10 +111,10 @@ aws --endpoint-url http://localhost:9000 s3 ls \
 
 ```bash
 # Verificar se está rodando
-docker-compose ps postgres
+docker compose ps postgres
 
 # Testar conexão
-psql -h localhost -p 5432 -U govhub -d govhub -c "SELECT 1;"
+psql -h localhost -p 5432 -U postgres_dw -d data_warehouse -c "SELECT 1;"
 ```
 
 ## Git

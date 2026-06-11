@@ -1,42 +1,35 @@
-# Protocolo de aprovação de Pull Request
+# Protocolo de Aprovação de Pull Requests
 
-Este documento define o fluxo obrigatório para abertura, revisão e aprovação de Pull Requests (PRs) no repositório. O objetivo é garantir qualidade, rastreabilidade e consistência nas contribuições de código e documentação.
+Este documento define o fluxo obrigatório para abertura, revisão e aprovação de Pull Requests (PRs) no GovHub BR. O objetivo é garantir qualidade, rastreabilidade e consistência nas contribuições de código, dados, infraestrutura e documentação.
 
----
+> Nos repositórios hospedados no GitHub, o fluxo operacional usa Pull Requests (PRs). Em repositórios hospedados no GitLab, leia Merge Request (MR) como o mesmo protocolo de revisão.
 
 ## Escopo
 
 Este protocolo se aplica a qualquer PR que envolva:
 
-- Código — novas DAGs, alterações em DAGs existentes, modelos dbt, plugins, helpers
-- Documentação — criação ou edição de arquivos `.md`, `schema.yml`, `CONTRIBUTING.md`, etc.
-
----
+- código: novas DAGs, alterações em DAGs existentes, modelos dbt, plugins e helpers;
+- documentação: criação ou edição de arquivos `.md`, `schema.yml`, `CONTRIBUTING.md`, entre outros;
+- infraestrutura e CI/CD: workflows, configurações, dependências e automações.
 
 ## Fluxo geral
 
-```
-branch de trabalho → commits padronizados → PR aberto → revisão → aprovação → merge na main
+```text
+branch de trabalho -> commits padronizados -> PR aberto -> revisão -> aprovação -> merge na main
 ```
 
 Nenhum merge deve ser feito diretamente na `main` sem passar pelo fluxo de PR.
 
----
-
 ## 1. Mensagens de commit
 
-O projeto adota o padrão **Conventional Commits**. Toda mensagem de commit deve seguir a estrutura:
+O projeto adota o padrão **Conventional Commits**:
 
-```
+```text
 <tipo>[escopo opcional]: <descrição>
-
-[corpo opcional]
-
-[rodapé(s) opcional(is)]
 ```
 
 | Tipo | Quando usar |
-|---|---|
+| --- | --- |
 | `feat` | Nova DAG, novo modelo, nova funcionalidade |
 | `fix` | Correção de bug ou comportamento incorreto |
 | `docs` | Criação ou edição de documentação |
@@ -48,184 +41,221 @@ O projeto adota o padrão **Conventional Commits**. Toda mensagem de commit deve
 | `chore` | Ajustes que não afetam código-fonte ou testes |
 | `style` | Formatação que não afeta lógica |
 
-**Exemplos:**
+Exemplos:
 
-```
-feat(siafi): adiciona dag de ingestao de notas de credito
-
-fix(dbt): corrige deduplicacao no modelo slv_contratos_empenhos
-Closes: #42
-
-docs: adiciona guia de padroes de engenharia
-```
+- `feat(siafi): adiciona dag de ingestao de notas de credito`
+- `fix(dbt): corrige deduplicacao no modelo slv_contratos_empenhos`
+- `docs: adiciona guia de padroes de engenharia`
 
 Regras:
-- Descrição em letras minúsculas, sem ponto final
-- Corpo separado da descrição por uma linha em branco
-- Para fechar uma issue automaticamente: `Closes: #<numero>` no rodapé
 
----
+- a descrição deve estar em letras minúsculas e sem ponto final;
+- o corpo do commit, quando existir, deve ser separado da descrição por uma linha em branco;
+- para fechar uma issue automaticamente, use `Closes: #<numero>` no rodapé.
 
 ## 2. Nomenclatura de branches
 
-O repositório usa dois formatos aceitos:
+O repositório usa dois formatos aceitos.
 
-**Formato padrão:**
-```
+Formato padrão:
+
+```text
 <tipo>/<descricao-curta>
 ```
 
-**Formato com issue vinculada:**
-```
+Formato com issue vinculada:
+
+```text
 <numero-da-issue>-<tipo>-<descricao-curta>
 ```
 
-**Exemplos reais do repositório:**
-```
-feat/siafi-nota-credito-ingestao
-fix/fechamento-conn-postgres
-docs/protocolo-mr
-149-feat-ingestao-sisbolsas
-24-fix-dag-nota-de-credito
-```
+Exemplos:
 
----
+- `feat/siafi-nota-credito-ingestao`
+- `fix/fechamento-conn-postgres`
+- `docs/protocolo-pr`
+- `149-feat-ingestao-sisbolsas`
+- `24-fix-dag-nota-de-credito`
 
 ## 3. Antes de abrir o PR
 
-- Certifique-se de que sua branch está atualizada em relação à `main`:
-  ```bash
-  git fetch origin
-  git rebase origin/main
-  ```
-- Para PRs de código: execute os testes e o lint localmente antes de abrir:
-  ```bash
-  make lint
-  make test
-  ```
-- Para PRs de DAGs: rode a DAG localmente e confirme que não há erros de importação.
-- Para PRs de modelos dbt: rode `dbt run` e `dbt test` localmente.
-- Para PRs de documentação: revise ortografia, links e formatação antes de abrir.
+Atualize sua branch em relação à `main` do repositório principal:
 
----
+```bash
+git fetch upstream
+git rebase upstream/main
+```
+
+Se o clone usa apenas `origin` apontando para `GovHub-br/data-application-gov-hub`, use:
+
+```bash
+git fetch origin
+git rebase origin/main
+```
+
+Para PRs de código, execute testes e lint localmente:
+
+```bash
+make lint
+make test
+```
+
+Para PRs de DAGs, rode a DAG localmente e confirme que não há erro de importação:
+
+```bash
+airflow dags test <nome_da_dag> <data_execucao>
+```
+
+Para PRs de modelos dbt, execute os comandos dentro do projeto dbt alterado:
+
+```bash
+cd airflow_lappis/dags/dbt/<projeto>
+dbt run --select <modelo>
+dbt test --select <modelo>
+```
+
+Para PRs de documentação, revise ortografia, links, navegação e formatação.
 
 ## 4. Preenchimento do PR
 
-**Título:** curto e descritivo, seguindo o mesmo padrão dos commits.
+O título do PR deve ser curto, descritivo e seguir o mesmo padrão dos commits.
 
-**Descrição deve conter:**
+A descrição deve conter:
 
-- **O que foi feito:** resumo claro das mudanças
-- **Por que foi feito:** contexto ou issue relacionada
-- **Como testar:** passos para o revisor validar as mudanças
-- **Checklist:** itens do `CONTRIBUTING.md` verificados
+- **Descrição:** o que foi feito e por que;
+- **Issues relacionadas:** issue vinculada, quando existir;
+- **Como testar / validar:** comandos e passos para o revisor;
+- **Evidências:** logs, prints, resultados de testes, consultas ou links relevantes;
+- **Checklist:** itens obrigatórios verificados antes da revisão.
 
-**Exemplo:**
+Exemplo:
 
-```
-## O que foi feito
+```md
+## Descrição
+
 Adicionada DAG de ingestão de notas de crédito do SIAFI.
 
-## Por que
-Demanda mapeada na issue #42.
+## Issues relacionadas
 
-## Como testar
+Closes #42
+
+## Como testar / validar
+
 1. Subir o ambiente local
-2. Triggerar manualmente a DAG `siafi_nota_credito_ingestao`
-3. Verificar registros inseridos no schema `siafi`
+2. Executar `airflow dags test nota_credito_siafi_ingest_dag 2025-01-01`
+3. Verificar registros inseridos no schema esperado
+
+## Evidências
+
+- `make lint` executado com sucesso
+- `make test` executado com sucesso
 
 ## Checklist
-- [x] DAG segue padrão de nomenclatura
-- [x] Commits seguem Conventional Commits
-- [x] `make lint` passou
-- [x] `make test` passou
-- [x] Documentação atualizada se necessário
-```
 
----
+- [x] Título do PR segue Conventional Commits
+- [x] Issue relacionada foi referenciada
+- [x] Testes/lint foram executados ou a ausência foi justificada
+- [x] Documentação atualizada, se aplicável
+```
 
 ## 5. Revisores
 
-### Quem deve revisar
-
 | Tipo de PR | Revisores |
-|---|---|
-| DAGs de ingestão | A definir |
-| Modelos dbt | A definir |
-| Plugins e helpers | A definir |
-| Documentação | A definir |
+| --- | --- |
+| DAGs de ingestão | `@GovHub-br/developers` |
+| Modelos dbt | `@GovHub-br/developers` |
+| Plugins e helpers | `@GovHub-br/infra` |
+| Documentação de configuração, infraestrutura ou deploy | `@GovHub-br/infra` |
+| Documentação de DAGs, modelos dbt ou fluxo de dados | `@GovHub-br/developers` |
 
-> **A definir com a equipe:** indicar os responsáveis por domínio.
+Caso um PR altere mais de um domínio, solicite revisão de todos os times responsáveis pelas áreas impactadas.
 
 ### Número mínimo de aprovações
 
-- PRs de código: **a definir**
-- PRs de documentação: **a definir**
+- PRs de código: mínimo de **1 aprovação** de uma pessoa revisora do domínio alterado.
+- PRs de documentação: mínimo de **1 aprovação** de uma pessoa responsável pelo tipo de documentação.
+- PRs críticos, sensíveis ou com impacto em produção: recomendado exigir **2 aprovações**.
 
----
+### CODEOWNERS e proteção da main
 
+O repositório da aplicação mantém um `CODEOWNERS` com responsáveis por domínio técnico. Para que essas regras bloqueiem merges automaticamente, a branch `main` deve exigir revisão e revisão dos code owners, conforme a plataforma usada pelo repositório.
 
-## 5.1 Durante a revisão
+Enquanto essas proteções não estiverem ativas, autores, revisores e mantenedores devem aplicar este protocolo manualmente.
+
+## 6. Durante a revisão
 
 O revisor deve:
 
-- Aprovar o PR se estiver tudo certo
-- Solicitar mudanças com comentários claros e objetivos — explicar o que está errado e, sempre que possível, sugerir como corrigir
-- Bloquear o PR (request changes) apenas em casos de problema real: bug, credencial exposta, violação de padrão crítico, dado sensível
+- aprovar o PR se estiver tudo certo;
+- solicitar mudanças com comentários claros e objetivos;
+- explicar o problema e, quando possível, sugerir como corrigir;
+- bloquear o PR com `request changes` apenas em casos reais: bug, credencial exposta, violação de padrão crítico ou dado sensível.
 
-Comentários de estilo ou preferência pessoal que não violam nenhum padrão documentado **não devem bloquear** o merge — podem ser deixados como sugestão opcional.
+Comentários de estilo ou preferência pessoal que não violam nenhum padrão documentado não devem bloquear o merge. Eles podem ser deixados como sugestão opcional.
 
-Prazo esperado de resposta do revisor: **a definir com a equipe**.
+Recomenda-se que a primeira resposta de revisão aconteça em até **2 dias úteis**, salvo indisponibilidade do time.
 
----
-
-## 5.2 Após pedido de mudança
+## 7. Após pedido de mudança
 
 O autor deve:
 
-- Responder a **todos** os comentários antes de pedir re-revisão — seja aplicando a mudança ou justificando por que não faz sentido
-- Marcar cada comentário como resolvido após endereçá-lo
-- Avisar o revisor quando as mudanças estiverem prontas para uma nova rodada
+- responder a todos os comentários antes de pedir nova revisão;
+- aplicar a mudança solicitada ou justificar por que ela não faz sentido;
+- marcar cada comentário como resolvido após endereçá-lo;
+- avisar o revisor quando as mudanças estiverem prontas para nova rodada.
 
-Se houver discordância sobre um comentário, discutir na própria thread do PR. Se não houver consenso, escalar para o time no canal de comunicação — não deixar o PR parado indefinidamente.
+Se houver discordância, a discussão deve acontecer na própria thread do PR. Se não houver consenso, escale para o time no canal de comunicação para evitar que o PR fique parado indefinidamente.
 
----
-
-## 6. Critérios de aprovação
+## 8. Critérios de aprovação
 
 ### Para código
 
-- [ ] A DAG ou modelo segue os padrões definidos em `docs/padroes-engenharia.md`
+- [ ] A DAG ou modelo segue os [padrões de engenharia](padroes-engenharia.md)
 - [ ] Não há `SELECT *` em modelos finais dbt
 - [ ] Não há credenciais ou dados sensíveis commitados
+- [ ] URLs, tokens, credenciais e certificados foram classificados corretamente: endpoint público não deve ser mascarado se o código depende dele; segredo real deve ser movido para variável, connection ou secret manager
 - [ ] Testes passam (`make test`, `dbt test`)
 - [ ] Lint passa (`make lint`)
 - [ ] Commits seguem Conventional Commits
 - [ ] A lógica está correta e o código é legível
-- [ ] Plugins e helpers existentes foram reaproveitados
+- [ ] Plugins e helpers existentes foram reaproveitados quando aplicável
 
 ### Para documentação
 
 - [ ] O conteúdo é preciso e reflete o estado real do repositório
-- [ ] Formatação markdown está correta
+- [ ] A formatação Markdown está correta
 - [ ] Links estão funcionando
 - [ ] Não contradiz outras documentações existentes
-- [ ] Commits seguem Conventional Commits
+- [ ] A página nova foi adicionada ao `nav` do `mkdocs.yml`, quando aplicável
 
----
-
-## 7. Merge
+## 9. Merge
 
 - O merge só pode ser feito após todas as aprovações necessárias.
-- Usar **merge commit** (padrão do repositório) — preserva o histórico completo dos PRs.
+- Usar **merge commit** como padrão do repositório, preservando o histórico completo dos PRs.
 - Deletar a branch após o merge.
 
----
+## 10. PRs urgentes
 
-## 8. PRs urgentes
+Em casos excepcionais que exijam merge imediato, como incidente em produção ou correção crítica:
 
-Em casos excepcionais que exijam merge imediato (incidente em produção, correção crítica):
+- notifique o time no canal de comunicação antes de mergear;
+- obtenha no mínimo **1 aprovação** de pessoa do time responsável;
+- abra issue de acompanhamento para revisão posterior, se necessário.
 
-- Notificar o time no canal de comunicação antes de mergear.
-- Mínimo de **1 aprovação** de pessoa a definir.
-- Abrir issue de acompanhamento para revisão posterior se necessário.
+## 11. Incidentes de segurança
+
+PRs relacionados a credenciais expostas, dados sensíveis, autenticação, autorização ou limpeza de histórico devem ser tratados como críticos.
+
+Regras mínimas:
+
+- não publicar valores de secrets em issues, PRs, chats ou documentação;
+- rotacionar ou revogar credenciais expostas antes de tratar limpeza de histórico como concluída;
+- não substituir endpoints públicos por `***REMOVED***` quando isso quebra execução do cliente;
+- coordenar reescrita de histórico com mantenedores e contribuidores;
+- orientar reclone do repositório quando houver force-push após limpeza de histórico.
+
+## Referências
+
+- [Padrões de engenharia](padroes-engenharia.md)
+- [Guia de contribuição](../CONTRIBUTING.md)
+- [Segurança](../governanca/seguranca.md)

@@ -1,115 +1,76 @@
 # Arquitetura Medallion
 
-O GovHub BR adota a arquitetura Medallion para organizar dados em camadas progressivas de qualidade.
+O GovHub BR usa a arquitetura Medallion como modelo de organização progressiva dos dados: dados mais próximos da fonte entram nas primeiras camadas e, a cada etapa, ganham tratamento, padronização, testes e finalidade analítica mais clara.
 
 ## Camadas
 
 ```mermaid
 graph LR
-    B[Bronze - Raw] --> S[Silver - Clean]
-    S --> G[Gold - Aggregated]
+    R[Raw / origem] --> B[Bronze]
+    B --> S[Silver]
+    S --> G[Gold]
 ```
 
-### Bronze (Raw)
+| Camada | Papel | Onde aparece no projeto |
+| --- | --- | --- |
+| Raw / origem | dado como recebido da fonte, arquivo ou resposta externa | APIs, arquivos, e-mails, tabelas de origem e, quando aplicável, object storage |
+| Bronze | primeira materialização controlada no pipeline | modelos `bronze/` nos projetos dbt e tabelas base carregadas por DAGs |
+| Silver | dado limpo, tipado, deduplicado e integrado | modelos `silver/` em domínios dbt |
+| Gold | fatos, dimensões, métricas e tabelas prontas para consumo | modelos `gold/` e dashboards Superset |
 
-**Storage**: MinIO (Object Storage)
+!!! note "Implementação varia por fonte"
+    Nem toda fonte passa pelas mesmas etapas físicas. Algumas DAGs inserem diretamente no PostgreSQL; outras podem envolver arquivos ou object storage. A regra importante é manter a rastreabilidade da origem e separar transformação analítica em modelos dbt quando houver consumo recorrente.
 
-Dados brutos exatamente como recebidos das fontes. Imutáveis e auditáveis.
+## Bronze
 
-| Aspecto | Detalhe |
-|---------|---------|
-| Formato | JSON, CSV, Parquet (raw) |
-| Retenção | Indefinida |
-| Qualidade | Nenhuma transformação |
-| Objetivo | Reprodutibilidade, auditoria |
+Bronze representa o primeiro estado controlado dos dados dentro do pipeline. Deve preservar o máximo possível da estrutura original, adicionando apenas metadados operacionais quando necessário, como `dt_ingest`.
 
-**Estrutura no MinIO**:
+Boas práticas:
 
-```
-bronze/
-├── transferegov/
-│   └── 2026-05-19/raw.json
-├── siape/
-│   └── 2026-05-12/servidores.csv
-├── siafi/
-│   └── 2026-05-19/execucao.json
-├── comprasgov/
-│   └── 2026-05-19/contratos.json
-└── siorg/
-    └── 2026-05-12/orgaos.json
-```
+- manter nomes e tipos próximos da fonte quando isso facilitar auditoria;
+- registrar data/hora de ingestão;
+- evitar regra de negócio complexa;
+- documentar origem, filtros e parâmetros usados na coleta.
 
-### Silver (Clean)
+## Silver
 
-**Storage**: PostgreSQL (schema `silver`)
+Silver é a camada de dados confiáveis para análise exploratória e para composição de modelos finais.
 
-Dados limpos, deduplicados e normalizados. Prontos para análise básica.
+Transformações comuns:
 
-| Aspecto | Detalhe |
-|---------|---------|
-| Formato | Tabelas PostgreSQL |
-| Transformações | Limpeza, dedup, normalização de tipos |
-| Testes | `not_null`, `unique`, `accepted_values` |
-| Objetivo | Base confiável para transformações |
+- normalização de datas, códigos e valores financeiros;
+- deduplicação;
+- padronização de chaves;
+- junção entre tabelas do mesmo domínio;
+- testes de unicidade, nulos e valores aceitos.
 
-**Exemplos de tabelas Silver**:
+## Gold
 
-- `silver.transferencias` — Transferências limpas
-- `silver.servidores` — Servidores normalizados
-- `silver.execucao_financeira` — Execução financeira
-- `silver.contratos` — Contratos padronizados
-- `silver.orgaos` — Estrutura organizacional
+Gold é a camada de consumo: dashboards, indicadores, tabelas agregadas e visões orientadas a perguntas de negócio.
 
-### Gold (Aggregated)
+Modelos Gold devem:
 
-**Storage**: PostgreSQL (schema `gold`)
+- ter nomes e descrições claros;
+- listar colunas explicitamente no `select` final;
+- incluir testes de integridade quando houver chaves e dimensões;
+- evitar expor dados sensíveis em granularidade individual;
+- servir diretamente ferramentas como Superset, Jupyter ou APIs de consumo.
 
-Dados agregados, métricas calculadas, prontos para consumo em BI.
+## Projetos dbt
 
-| Aspecto | Detalhe |
-|---------|---------|
-| Formato | Tabelas e views PostgreSQL |
-| Transformações | Agregações, joins, métricas |
-| Testes | `relationships`, business rules |
-| Objetivo | Consumo direto por Superset/JupyterHub |
+No repositório principal, os projetos dbt atuais ficam em:
 
-**Exemplos de tabelas Gold**:
+| Projeto | Caminho |
+| --- | --- |
+| `ipea` | `airflow_lappis/dags/dbt/ipea` |
+| `mir` | `airflow_lappis/dags/dbt/mir` |
 
-- `gold.fato_transferencias` — Fato: transferências por órgão/período
-- `gold.fato_servidores` — Fato: indicadores de pessoal
-- `gold.fato_compras` — Fato: métricas de compras
-- `gold.dim_orgaos` — Dimensão: órgãos consolidados
-- `gold.dim_tempo` — Dimensão: calendário
-
-## Fluxo dbt
-
-```mermaid
-graph TB
-    subgraph "Sources"
-        SRC[External Sources - MinIO]
-    end
-
-    subgraph "Staging"
-        STG[stg_* models]
-    end
-
-    subgraph "Silver"
-        SLV[silver.* tables]
-    end
-
-    subgraph "Gold"
-        GLD[gold.fato_* / gold.dim_*]
-    end
-
-    SRC --> STG
-    STG --> SLV
-    SLV --> GLD
-```
+Cada domínio organiza suas camadas dentro de `models/<dominio>_dbt/`, por exemplo `contratos_dbt/bronze`, `pessoas_dbt/silver` ou `empenhos_ted_dbt/gold`.
 
 ## Benefícios
 
-- **Reprodutibilidade**: Sempre possível reprocessar a partir do Bronze
-- **Auditoria**: Dados raw preservados indefinidamente
-- **Qualidade progressiva**: Cada camada adiciona confiabilidade
-- **Separação de concerns**: Ingestão ≠ transformação ≠ consumo
-- **Debug**: Problemas isoláveis por camada
+- **Rastreabilidade:** fica claro de onde cada tabela veio.
+- **Qualidade progressiva:** cada camada adiciona validação e significado.
+- **Manutenção:** erros podem ser isolados por origem, domínio e camada.
+- **Reuso:** Silver evita duplicação de tratamento entre vários modelos Gold.
+- **Governança:** dados sensíveis podem ser classificados antes do consumo.

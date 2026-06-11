@@ -36,8 +36,8 @@ WHERE orgao_concedente = '{{ current_user.org_code }}'
 
 | Fonte | Sensibilidade | Tratamento |
 |-------|---------------|------------|
-| Siape | Alta (dados pessoais) | Acesso governado via Trino + Ranger |
-| Siafi | Média (financeiro detalhado) | Acesso governado via Trino + Ranger |
+| Siape | Alta (dados pessoais) | Acesso governado via Trino + Ranger, quando habilitado |
+| Siafi | Média (financeiro detalhado) | Acesso governado via Trino + Ranger, quando habilitado |
 | TransfereGov | Baixa (público) | Acesso direto via PostgreSQL |
 | ComprasGov | Baixa (público) | Acesso direto via PostgreSQL |
 | Siorg | Baixa (público) | Acesso direto via PostgreSQL |
@@ -63,9 +63,11 @@ graph LR
 | Básico | Superset/JupyterHub → PostgreSQL direto | Públicos (TransfereGov, ComprasGov, Siorg) | Roles PG |
 | Governado | JupyterHub → Trino + Ranger → PostgreSQL | Sensíveis (Siape, Siafi detalhado) | Row-level security, column masking |
 
-## Apache Ranger + Trino (Operacional)
+## Apache Ranger + Trino
 
-Trino + Ranger estão deployed e operacionais no cluster, fornecendo:
+Trino + Ranger são a referência do projeto para acesso governado a dados sensíveis. A configuração e os exemplos de políticas ficam no repositório [`data-governance-workshop`](https://github.com/GovHub-br/data-governance-workshop). Antes de tratar esse caminho como obrigatório em um ambiente, confirme o estado do deploy com a equipe de infraestrutura.
+
+Quando habilitados, esses componentes fornecem:
 
 - **Row-level security**: Filtro automático por perfil do usuário
 - **Column masking**: Ocultação de colunas sensíveis (CPF, remuneração individual)

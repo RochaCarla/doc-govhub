@@ -1,10 +1,10 @@
 # Argo CD (GitOps)
 
-Deploy declarativo de toda a infraestrutura do GovHub BR via GitOps.
+Referência de deploy declarativo da infraestrutura do GovHub BR via GitOps.
 
 ## Conceito
 
-O Argo CD monitora o repositório `continuous-deployment` e sincroniza automaticamente o estado do cluster Kubernetes com os manifests versionados no Git. Nenhum `kubectl apply` manual em produção.
+O Argo CD monitora o repositório `continuous-deployment` e sincroniza o estado do cluster Kubernetes com os manifests versionados no Git. Em ambientes controlados, evite `kubectl apply` manual fora do fluxo acordado de GitOps.
 
 ```mermaid
 sequenceDiagram

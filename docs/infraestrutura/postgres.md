@@ -57,32 +57,32 @@ graph LR
 ### Local
 
 ```bash
-# Via docker-compose
-psql -h localhost -p 5432 -U govhub -d govhub
+# Via Docker Compose
+psql -h localhost -p 5432 -U postgres_dw -d data_warehouse
 ```
 
 ### dbt (profiles.yml)
 
 ```yaml
-govhub:
+ipea:
   target: dev
   outputs:
     dev:
       type: postgres
       host: localhost
       port: 5432
-      user: govhub
-      password: "{{ env_var('POSTGRES_PASSWORD') }}"
-      dbname: govhub
-      schema: public
+      user: postgres_dw
+      password: "{{ env_var('DB_DW_PASSWORD', 'postgres_dw') }}"
+      dbname: data_warehouse
+      schema: ipea
       threads: 4
 ```
 
 ### Superset Dataset
 
 ```
-Database: govhub
-SQLAlchemy URI: postgresql://govhub:<password>@postgres:5432/govhub
+Database: GovHub Analytics
+SQLAlchemy URI: postgresql://postgres_dw:<password>@postgres:5432/data_warehouse
 ```
 
 ## Deploy (Produção)

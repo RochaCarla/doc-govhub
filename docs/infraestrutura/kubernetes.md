@@ -1,10 +1,10 @@
 # Kubernetes
 
-Cluster Kubernetes que hospeda todos os serviços do GovHub BR em produção.
+Referência de organização Kubernetes para os serviços do GovHub BR.
 
 ## Visão Geral
 
-Todos os componentes (Airflow, MinIO, PostgreSQL, Superset, JupyterHub) rodam como workloads no cluster K8s, gerenciados via Argo CD (GitOps).
+Os manifests do projeto descrevem componentes como Airflow, MinIO, PostgreSQL, Superset e JupyterHub para execução como workloads Kubernetes, gerenciados via Argo CD (GitOps). Antes de operar um ambiente específico, confirme quais componentes estão habilitados no cluster alvo.
 
 ## Namespaces
 
@@ -16,7 +16,7 @@ Todos os componentes (Airflow, MinIO, PostgreSQL, Superset, JupyterHub) rodam co
 | `postgres` | PostgreSQL (metastore/analytics) |
 | `superset` | Apache Superset |
 | `jupyterhub` | JupyterHub |
-| `trino` | Trino + Ranger (acesso governado) |
+| `trino` | Trino + Ranger (acesso governado, quando habilitado) |
 
 ## Pré-requisitos
 

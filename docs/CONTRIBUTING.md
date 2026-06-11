@@ -86,7 +86,7 @@ Liste os arquivos principais adicionados ou modificados e o que cada um faz.
 Descreva os passos mínimos para validar a mudança localmente.
 
 ```
-1. docker-compose up -d
+1. docker compose up -d
 2. Trigger manual da DAG pncp_itens_licitacoes_ingest_dag no Airflow
 3. Verificar registros em pncp.itens_licitacoes: SELECT COUNT(*) FROM pncp.itens_licitacoes;
 4. dbt run --select contratos_dbt.bronze.itens_licitacoes
@@ -154,7 +154,7 @@ Marque todos os itens aplicáveis antes de abrir o PR.
 | Code style | `make lint` deve passar sem erros |
 | Testes | `make test` deve passar antes do PR |
 
-Para detalhes de padrões de DAGs e modelos dbt, consulte [Padrões de Engenharia](../pipeline/padroes-engenharia.md).
+Para detalhes de padrões de DAGs e modelos dbt, consulte [Padrões de Engenharia](pipeline/padroes-engenharia.md).
 
 ---
 

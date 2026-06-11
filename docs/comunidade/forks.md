@@ -42,7 +42,7 @@ CREATE SCHEMA IF NOT EXISTS meufork_gold;
 
 ### 3. Adaptar fontes de dados
 
-- Criar novas DAGs em `airflow/dags/` (3 passos: extract → load → trigger dbt)
+- Criar novas DAGs em `airflow_lappis/dags/data_ingest/<origem>/`
 - Configurar conexões específicas
 - Os dados raw vão para buckets MinIO dedicados (`bronze-<fork>`)
 
