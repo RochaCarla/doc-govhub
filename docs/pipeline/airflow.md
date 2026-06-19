@@ -1,125 +1,133 @@
 # Apache Airflow
 
-Orquestração de pipelines de ingestão de dados governamentais.
+O Airflow orquestra as rotinas de ingestão, transformação e atualização de artefatos auxiliares do GovHub BR. No repositório principal, o código fica em `airflow_lappis/`.
 
-## Visão Geral
+## Estrutura real do repositório
 
-O Airflow é responsável por:
-
-1. Extrair dados de APIs/sistemas governamentais
-2. Depositar dados brutos no MinIO (Bronze)
-3. Triggerar transformações dbt após ingestão
-
-## DAGs
-
-### Estrutura
-
-```
-airflow/
-├── dags/
-│   ├── ingestao_transferegov.py
-│   ├── ingestao_siape.py
-│   ├── ingestao_siafi.py
-│   ├── ingestao_comprasgov.py
-│   ├── ingestao_siorg.py
-│   └── dbt_transform.py
-└── plugins/
-    └── operators/
-        └── minio_upload_operator.py
+```text
+airflow_lappis/
+  dags/
+    data_ingest/        # DAGs de ingestão por fonte ou domínio
+    dbt/                # DAGs Cosmos que executam projetos dbt
+    dashboards/         # DAGs auxiliares para dashboards
+  helpers/              # funções reutilizáveis
+  plugins/              # clientes de APIs, Postgres e utilitários Airflow
+  templates/            # templates usados por integrações específicas
 ```
 
-### Schedule
+As DAGs de ingestão ficam agrupadas por origem em `airflow_lappis/dags/data_ingest/`. Exemplos atuais:
 
-| DAG | Schedule | Descrição |
-|-----|----------|-----------|
-| `ingestao_transferegov` | `0 6 * * *` | Diária às 6h |
-| `ingestao_siape` | `0 4 * * 1` | Semanal (segunda) |
-| `ingestao_siafi` | `0 6 * * *` | Diária às 6h |
-| `ingestao_comprasgov` | `0 7 * * *` | Diária às 7h |
-| `ingestao_siorg` | `0 4 * * 1` | Semanal (segunda) |
-| `dbt_transform` | Trigger (pós-ingestão) | Após sucesso das DAGs |
+| Pasta | Conteúdo |
+| --- | --- |
+| `compras_gov/` | contratos, faturas, empenhos, cronogramas e terceirizados |
+| `siafi/` | notas de crédito, notas de empenho e programação financeira |
+| `siape/` | dados funcionais, pessoais, escolares, afastamentos e dependentes |
+| `siorg/` | unidades organizacionais, cargos e funções |
+| `transfere_gov/` | programas, planos de ação, notas de crédito e programação financeira |
+| `tesouro_gerencial/` | ingestão via arquivos recebidos por e-mail e domínios MIR/MCID |
+| `pncp/`, `ibge/`, `dados_abertos/`, `sisbolsas/`, `sgac/` | integrações específicas |
 
-### Exemplo de DAG (3 passos)
+## Padrão de DAG
+
+O padrão predominante usa a TaskFlow API (`@dag` e `@task`), clientes em `plugins/` e helpers compartilhados. A DAG deve ficar pequena: ela orquestra; a lógica de acesso a API e banco fica em clientes e helpers.
 
 ```python
-from airflow import DAG
-from airflow.operators.python import PythonOperator
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.decorators import dag, task
+from airflow.models import Variable
 from datetime import datetime, timedelta
+from schedule_loader import get_dynamic_schedule
+from postgres_helpers import get_postgres_conn
+from cliente_postgres import ClientPostgresDB
 
-default_args = {
-    "owner": "govhub",
-    "retries": 3,
-    "retry_delay": timedelta(minutes=5),
-}
-
-with DAG(
-    "ingestao_transferegov",
-    default_args=default_args,
-    schedule_interval="0 6 * * *",
-    start_date=datetime(2025, 1, 1),
+@dag(
+    schedule_interval=get_dynamic_schedule("contratos_ingest_dag"),
+    start_date=datetime(2023, 1, 1),
     catchup=False,
-    tags=["ingestao", "transferegov"],
-) as dag:
+    default_args={
+        "owner": "nome-ou-time",
+        "retries": 1,
+        "retry_delay": timedelta(minutes=5),
+    },
+    tags=["compras_gov", "contratos"],
+)
+def contratos_ingest_dag():
+    @task
+    def fetch_and_store():
+        orgao_alvo = Variable.get("airflow_orgao", default_var=None)
+        if not orgao_alvo:
+            raise ValueError("airflow_orgao não definida")
 
-    # 1. Extract: API → MinIO (Bronze)
-    extract = PythonOperator(
-        task_id="extract",
-        python_callable=extract_transferegov_data,
-    )
+        db = ClientPostgresDB(get_postgres_conn())
+        ...
 
-    # 2. Load: MinIO → PostgreSQL (staging tables)
-    load = PythonOperator(
-        task_id="load",
-        python_callable=load_minio_to_postgres,
-    )
+    fetch_and_store()
 
-    # 3. Trigger dbt: staging → Silver/Gold
-    trigger_dbt = TriggerDagRunOperator(
-        task_id="trigger_dbt",
-        trigger_dag_id="dbt_transform",
-        wait_for_completion=True,
-    )
-
-    extract >> load >> trigger_dbt
+dag_instance = contratos_ingest_dag()
 ```
 
-## Conexões
+## Agendamento
 
-| Connection ID | Tipo | Destino |
-|---------------|------|---------|
-| `minio_default` | S3 | MinIO (object storage) |
-| `postgres_default` | PostgreSQL | Banco analítico |
-| `transferegov_api` | HTTP | API TransfereGov |
-| `siape_cert` | HTTP + Cert | Siape (certificado) |
-| `siafi_api` | HTTP + Cert | Siafi |
-| `comprasgov_api` | HTTP | ComprasGov API |
+As DAGs de ingestão devem usar `get_dynamic_schedule()`, definido em `airflow_lappis/plugins/schedule_loader.py`. Esse helper lê a Airflow Variable `dynamic_schedules` e permite alterar cronogramas sem editar código.
 
-## Monitoramento
+```json
+{
+  "empenhos_tesouro_ingest_dag": {
+    "type": "cron",
+    "value": "0 13 * * 1-6"
+  }
+}
+```
 
-- **Logs**: Acessíveis na UI do Airflow
-- **Alertas**: Email/Slack em falha de DAG
-- **Métricas**: Duração, taxa de sucesso, retries
-- **Health check**: `/health` endpoint
+Tipos aceitos: `preset`, `cron` e `timedelta`. Quando uma DAG não aparece na variável, o padrão é `@daily`.
 
-## Acesso Local
+!!! note "Exceções"
+    DAGs dbt com Astronomer Cosmos usam `schedule_interval` diretamente dentro da configuração `DbtDag`. Algumas DAGs legadas também podem ter schedule direto; ao tocar nelas, prefira migrar para o padrão dinâmico quando fizer sentido.
+
+## Variáveis e conexões locais
+
+O `make dev` configura as variáveis e conexões básicas para desenvolvimento local:
+
+| Item | Uso |
+| --- | --- |
+| `airflow_orgao` | órgão alvo da execução local |
+| `airflow_variables` | configurações por órgão, como `codigos_ug` |
+| `dynamic_schedules` | schedules por `dag_id` |
+| `postgres_default` | conexão padrão do Airflow para PostgreSQL |
+
+Algumas DAGs usam conexões nomeadas adicionais, como `postgres_mir`. Antes de criar ou alterar uma DAG, confira o domínio e a conexão usada pelas DAGs semelhantes.
+
+## Acesso local
 
 ```bash
-docker-compose up -d
-# Airflow UI: http://localhost:8080
-# User: airflow / Password: airflow
+make setup
+docker compose up -d
+make dev-check
 ```
 
-## Deploy (Produção)
+Serviços principais:
 
-Gerenciado via Argo CD (repo `continuous-deployment/airflow/`).
+| Serviço | URL | Credenciais locais |
+| --- | --- | --- |
+| Airflow | http://localhost:8080 | `airflow` / `airflow` |
+| Superset | http://localhost:8088 | `admin` / `admin` |
+| Jupyter | http://localhost:8888 | sem autenticação local |
 
-```yaml
-# values.prod.yaml (overlay)
-airflow:
-  executor: KubernetesExecutor
-  workers:
-    replicas: 2
-  scheduler:
-    replicas: 1
+!!! warning "Apenas local"
+    Essas credenciais são padrões de desenvolvimento. Ambientes compartilhados, staging e produção devem usar credenciais próprias e mecanismos de secret do ambiente.
+
+## Validação
+
+Antes de abrir PR com mudança em DAG:
+
+```bash
+make lint
+make test
+docker compose exec airflow airflow dags list
+docker compose exec airflow airflow dags test <dag_id> <data_execucao>
 ```
+
+## Referências relacionadas
+
+- [Ingestão de dados](ingestao.md)
+- [Padrões de engenharia](padroes-engenharia.md)
+- [Observabilidade](observabilidade.md)

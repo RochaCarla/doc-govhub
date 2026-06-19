@@ -4,7 +4,7 @@ Guia passo a passo para criar seu primeiro dashboard no GovHub BR.
 
 ## Pré-requisitos
 
-- Ambiente local rodando (`docker-compose up -d`)
+- Ambiente local rodando (`docker compose up -d`)
 - Superset acessível em http://localhost:8088
 - Dados na camada Gold do PostgreSQL (rodar `dbt run` antes)
 
@@ -18,7 +18,7 @@ Guia passo a passo para criar seu primeiro dashboard no GovHub BR.
 1. Menu → Data → Databases → + Database
 2. Preencher:
    - Database Name: `GovHub`
-   - SQLAlchemy URI: `postgresql://govhub:govhub_dev@postgres:5432/govhub`
+   - SQLAlchemy URI: `postgresql://postgres_dw:postgres_dw@postgres:5432/data_warehouse`
 3. Test Connection → Save
 
 ## 3. Criar Dataset

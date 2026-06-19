@@ -101,7 +101,7 @@ data-application-cidades/
 git clone git@github.com:GovHub-br/data-application-cidades.git
 cd data-application-cidades
 make setup
-docker-compose up -d
+docker compose up -d
 ```
 
 ## Sincronização com Base

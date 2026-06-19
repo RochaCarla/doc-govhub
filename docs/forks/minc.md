@@ -102,7 +102,7 @@ data-application-minc/
 git clone git@github.com:GovHub-br/data-application-minc.git
 cd data-application-minc
 make setup
-docker-compose up -d
+docker compose up -d
 ```
 
 ## Sincronização com Base

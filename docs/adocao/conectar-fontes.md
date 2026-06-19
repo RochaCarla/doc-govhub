@@ -6,7 +6,7 @@ Como adicionar fontes de dados do seu órgão ao GovHub.
 
 - [Deploy inicial](deploy-inicial.md) funcionando
 - Airflow acessível
-- MinIO e PostgreSQL operacionais
+- PostgreSQL operacional e object storage disponível quando a fonte exigir arquivos brutos
 - Credenciais/APIs das fontes identificadas
 
 ## Fluxo para Nova Fonte
@@ -35,51 +35,36 @@ Documente antes de codificar:
 
 ## 2. Criar a DAG de Ingestão
 
-Siga o padrão de 3 passos:
+Crie a DAG em `airflow_lappis/dags/data_ingest/<origem>/`. Em DAGs novas, prefira TaskFlow API, clientes em `plugins/` e helpers existentes.
 
 ```python
-# airflow/dags/ingestao_minhafonte.py
-from airflow import DAG
-from airflow.operators.python import PythonOperator
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+# airflow_lappis/dags/data_ingest/minhafonte/minhafonte_ingest_dag.py
+from airflow.decorators import dag, task
 from datetime import datetime, timedelta
+from schedule_loader import get_dynamic_schedule
 
-default_args = {
-    "owner": "meuorgao",
-    "retries": 3,
-    "retry_delay": timedelta(minutes=5),
-}
-
-with DAG(
-    "ingestao_minhafonte",
-    default_args=default_args,
-    schedule_interval="0 6 * * *",
+@dag(
+    schedule_interval=get_dynamic_schedule("minhafonte_ingest_dag"),
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=["ingestao", "minhafonte"],
-) as dag:
+    default_args={
+        "owner": "meuorgao",
+        "retries": 1,
+        "retry_delay": timedelta(minutes=5),
+    },
+)
+def minhafonte_ingest_dag() -> None:
+    @task
+    def fetch_and_store() -> None:
+        ...
 
-    # 1. Extract: API → MinIO (Bronze)
-    extract = PythonOperator(
-        task_id="extract",
-        python_callable=extract_minhafonte,
-    )
+    fetch_and_store()
 
-    # 2. Load: MinIO → PostgreSQL (staging)
-    load = PythonOperator(
-        task_id="load",
-        python_callable=load_to_postgres,
-    )
-
-    # 3. Trigger dbt
-    trigger_dbt = TriggerDagRunOperator(
-        task_id="trigger_dbt",
-        trigger_dag_id="dbt_transform",
-        wait_for_completion=True,
-    )
-
-    extract >> load >> trigger_dbt
+dag_instance = minhafonte_ingest_dag()
 ```
+
+Se a fonte gerar modelos analíticos, crie ou atualize os models dbt no projeto correspondente (`airflow_lappis/dags/dbt/ipea` ou `airflow_lappis/dags/dbt/mir`).
 
 ## 3. Configurar Connections no Airflow
 
@@ -93,10 +78,12 @@ airflow connections add minhafonte_api \
     --conn-extra '{"api_key": "xxx"}'
 ```
 
-## 4. Criar Bucket MinIO
+## 4. Criar Bucket ou área de dados brutos, se aplicável
+
+Algumas fontes podem exigir preservação de arquivos brutos em object storage. Quando isso for necessário, combine o nome do bucket ou prefixo com a equipe de infraestrutura.
 
 ```bash
-# Via mc (MinIO Client)
+# Exemplo via mc (MinIO Client)
 mc alias set govhub http://minio:9000 <ACCESS_KEY> <SECRET_KEY>
 mc mb govhub/bronze-minhafonte
 ```
@@ -106,7 +93,7 @@ mc mb govhub/bronze-minhafonte
 ### Source (staging)
 
 ```yaml
-# dbt/models/staging/schema.yml
+# airflow_lappis/dags/dbt/<projeto>/models/<dominio>_dbt/bronze/schema.yml
 sources:
   - name: bronze
     tables:
@@ -119,7 +106,7 @@ sources:
 ### Model Silver
 
 ```sql
--- dbt/models/silver/minhafonte.sql
+-- airflow_lappis/dags/dbt/<projeto>/models/<dominio>_dbt/silver/minhafonte.sql
 {{ config(materialized='table', schema='silver') }}
 
 SELECT
@@ -135,7 +122,7 @@ WHERE id IS NOT NULL
 ### Testes
 
 ```yaml
-# dbt/models/schema.yml
+# airflow_lappis/dags/dbt/<projeto>/models/<dominio>_dbt/silver/schema.yml
 models:
   - name: minhafonte
     columns:
@@ -149,13 +136,13 @@ models:
 
 ```bash
 # Trigger manual da DAG
-airflow dags trigger ingestao_minhafonte
+airflow dags trigger minhafonte_ingest_dag
 
 # Verificar no Airflow UI
-# http://localhost:8080 → ingestao_minhafonte → Graph
+# http://localhost:8080 → minhafonte_ingest_dag → Graph
 
 # Rodar dbt localmente
-cd dbt/
+cd airflow_lappis/dags/dbt/<projeto>
 dbt run --select minhafonte
 dbt test --select minhafonte
 ```
@@ -169,9 +156,9 @@ dbt test --select minhafonte
 ## Checklist
 
 - [ ] API/fonte documentada
-- [ ] DAG criada com 3 tasks
+- [ ] DAG criada em `airflow_lappis/dags/data_ingest/<origem>/`
 - [ ] Connection configurada no Airflow
-- [ ] Bucket MinIO criado
+- [ ] Bucket/prefixo de dados brutos criado, se aplicável
 - [ ] Models dbt (staging + silver + testes)
 - [ ] Pipeline testado end-to-end
 - [ ] Dataset no Superset criado

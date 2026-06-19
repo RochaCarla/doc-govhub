@@ -77,10 +77,11 @@ Para desenvolvimento local, credenciais padrão estão no `docker-compose.yml`:
 
 ```yaml
 environment:
-  POSTGRES_USER: govhub
-  POSTGRES_PASSWORD: govhub_dev
-  MINIO_ROOT_USER: minioadmin
-  MINIO_ROOT_PASSWORD: minioadmin
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  POSTGRES_USER_DW: postgres_dw
+  POSTGRES_PASSWORD_DW: postgres_dw
+  POSTGRES_DB_DW: data_warehouse
 ```
 
 !!! note

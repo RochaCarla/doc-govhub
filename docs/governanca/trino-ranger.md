@@ -23,9 +23,7 @@ graph LR
 | Trino + Ranger | Dados sensíveis | Siape (pessoal), Siafi (detalhado) |
 
 !!! note "Regra geral"
-    Superset **sempre** acessa PostgreSQL diretamente (dados Gold públicos).
-    Trino é obrigatório apenas para análises que tocam registros individuais de
-    fontes sensíveis (Siape, detalhamento Siafi).
+    O desenho recomendado mantém Superset voltado a dados Gold públicos ou agregados no PostgreSQL. Para análises que tocam registros individuais de fontes sensíveis, como Siape ou detalhamento Siafi, use o caminho governado com Trino + Ranger quando ele estiver habilitado no ambiente.
 
 ## Arquitetura
 
@@ -108,17 +106,17 @@ connection-password=${ENV:TRINO_PG_PASSWORD}
 from sqlalchemy import create_engine
 import pandas as pd
 
-# Conexão via Trino — Ranger aplica políticas automaticamente
+# Conexão via Trino — Ranger aplica as políticas configuradas no ambiente
 engine = create_engine("trino://trino:8443/postgres/silver")
 
 # O usuário autenticado determina quais filtros Ranger aplica
 df = pd.read_sql("SELECT * FROM servidores LIMIT 100", engine)
-# → Ranger filtra automaticamente por orgao_lotacao do usuário
+# → Ranger aplica filtros conforme a política vigente
 ```
 
 ## Deploy
 
-Trino e Ranger estão no cluster K8s, gerenciados via Argo CD:
+A referência de deploy de Trino e Ranger fica no repositório `continuous-deployment`. Confirme no cluster alvo quais componentes estão ativos e quais namespaces foram adotados:
 
 ```
 continuous-deployment/
@@ -130,7 +128,7 @@ continuous-deployment/
     └── values.prod.yaml
 ```
 
-| Namespace | Componente | Porta |
+| Namespace | Componente | Porta comum |
 |-----------|-----------|-------|
 | `trino` | Trino coordinator | 8443 |
 | `trino` | Trino workers | — |
@@ -140,7 +138,7 @@ continuous-deployment/
 
 - **Trino UI**: Queries em execução, performance, falhas
 - **Ranger Audit**: Log de todas as decisões de acesso (permitido/negado)
-- **Alertas**: Query lenta > 5min, falha de autenticação
+- **Alertas**: query lenta, falha de autenticação ou aumento incomum de erros
 
 ## Referências
 

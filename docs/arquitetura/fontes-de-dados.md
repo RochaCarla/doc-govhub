@@ -73,8 +73,8 @@ graph LR
 
 !!! warning "Dados sensíveis"
     Dados individuais do Siape são protegidos por LGPD. O GovHub armazena
-    dados brutos no Bronze (MinIO) e aplica **acesso governado via Trino + Ranger**
-    para qualquer consulta que toque registros individuais.
+    dados brutos de forma controlada e recomenda **acesso governado via Trino + Ranger**
+    para consultas que toquem registros individuais, quando esse caminho estiver habilitado no ambiente.
 
 ---
 
@@ -163,6 +163,19 @@ graph TB
 ```
 
 Exemplo: o código do órgão no Siorg é a chave para cruzar transferências (TransfereGov), servidores (Siape), execução financeira (Siafi) e contratos (ComprasGov) de um mesmo ministério.
+
+### Interoperabilidade
+
+Nem todo cruzamento entre sistemas estruturantes tem uma chave única perfeita. Em alguns domínios, como compras e execução financeira, campos aparentemente úteis — por exemplo CNPJ, número de processo ou unidade gestora — podem não ser suficientes para identificar um vínculo único entre registros.
+
+Quando uma integração depender de combinação de chaves ou heurísticas, documente:
+
+- quais campos foram usados para relacionar as bases;
+- quais casos ficam sem correspondência;
+- quais ambiguidades foram aceitas ou descartadas;
+- qual regra precisa ser revisada com a área de negócio.
+
+Essa documentação é parte da governança do dado: ela explica não apenas que duas tabelas se conectam, mas também o grau de confiança dessa conexão.
 
 ## Referências
 

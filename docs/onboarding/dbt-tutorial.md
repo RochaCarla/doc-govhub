@@ -1,97 +1,85 @@
 # Tutorial: Primeiro Model no dbt
 
-Guia passo a passo para criar seu primeiro model de transformação no GovHub BR.
+Guia curto para criar e testar um model dbt mínimo dentro da estrutura real do GovHub BR.
 
 ## Pré-requisitos
 
-- Ambiente local rodando (`docker-compose up -d`)
+- Ambiente local configurado
 - PostgreSQL acessível
-- dbt instalado (via `make setup`)
+- Dependências instaladas via `make setup`
 
-## 1. Verificar conexão
+## 1. Entrar no projeto dbt
+
+Use o projeto `ipea` para o tutorial:
 
 ```bash
-cd dbt/
+cd airflow_lappis/dags/dbt/ipea
 dbt debug
 ```
 
-Deve mostrar "All checks passed!"
+## 2. Criar um model didático
 
-## 2. Criar um model Silver
-
-Crie `dbt/models/silver/exemplo_orgaos.sql`:
+Crie `models/tutorial_dbt/silver/exemplo_orgaos.sql`:
 
 ```sql
-{{ config(materialized='table', schema='silver') }}
+{{ config(materialized='table', schema='tutorial') }}
 
-SELECT
+with source_data as (
+    select 1 as id, 'Instituto de Pesquisa Econômica Aplicada' as nome, 'IPEA' as sigla
+    union all
+    select 2 as id, 'Universidade de Brasília' as nome, 'UNB' as sigla
+)
+
+select
     id,
-    TRIM(nome) AS nome,
-    LOWER(sigla) AS sigla,
-    tipo,
-    NOW() AS loaded_at
-FROM {{ source('bronze', 'siorg_raw') }}
-WHERE id IS NOT NULL
-  AND nome IS NOT NULL
+    trim(nome) as nome,
+    lower(sigla) as sigla,
+    current_timestamp as dt_ingest
+from source_data
+where id is not null
 ```
+
+Esse exemplo não depende de API ou tabela externa. Ele serve apenas para validar estrutura, execução e testes.
 
 ## 3. Adicionar testes
 
-Em `dbt/models/schema.yml`, adicione:
+Crie `models/tutorial_dbt/silver/schema.yml`:
 
 ```yaml
+version: 2
+
 models:
   - name: exemplo_orgaos
-    description: "Órgãos governamentais (tutorial)"
+    description: Model didático para validar execução local do dbt.
     columns:
       - name: id
+        description: Identificador didático do órgão.
         tests:
           - not_null
           - unique
       - name: nome
+        description: Nome do órgão.
         tests:
           - not_null
+      - name: dt_ingest
+        description: Data e hora de geração do model didático.
 ```
 
 ## 4. Executar
 
 ```bash
-# Rodar apenas o novo model
 dbt run --select exemplo_orgaos
-
-# Rodar testes
 dbt test --select exemplo_orgaos
-
-# Ver documentação
-dbt docs generate
-dbt docs serve
+dbt show --select exemplo_orgaos --limit 5
 ```
 
-## 5. Verificar resultado
+## 5. Limpar o tutorial
 
-```bash
-psql -h localhost -p 5432 -U govhub -d govhub -c "SELECT * FROM silver.exemplo_orgaos LIMIT 5;"
-```
+Depois do teste, remova `models/tutorial_dbt/` antes de abrir PR, a menos que a mudança seja exatamente criar documentação ou fixture didática combinada com o time.
 
-## 6. Próximos passos
+## Próximos passos
 
-- Criar model Gold que agrega a partir do Silver
-- Adicionar mais testes (relationships, accepted_values)
-- Explorar materializations (`incremental` para tabelas grandes)
-- Estudar models existentes em `dbt/models/`
-
-## Comandos Úteis
-
-| Comando | Descrição |
-|---------|-----------|
-| `dbt run` | Executa todos os models |
-| `dbt run --select silver.*` | Apenas Silver |
-| `dbt test` | Roda todos os testes |
-| `dbt source freshness` | Verifica freshness |
-| `dbt docs generate && dbt docs serve` | Documentação local |
-| `dbt run --full-refresh` | Recria tabelas |
-
-## Referências
-
-- [dbt Quickstart](https://docs.getdbt.com/quickstarts)
-- [dbt Best Practices](https://docs.getdbt.com/best-practices)
+- Estudar os domínios reais em `models/*_dbt/`
+- Ler [dbt](../pipeline/dbt.md)
+- Ler [Qualidade de Dados](../pipeline/qualidade.md)
+- Seguir [Padrões de Engenharia](../pipeline/padroes-engenharia.md)

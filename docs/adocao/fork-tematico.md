@@ -58,12 +58,12 @@ cd data-application-meuorgao
 CREATE SCHEMA IF NOT EXISTS meuorgao_silver;
 CREATE SCHEMA IF NOT EXISTS meuorgao_gold;
 
--- Grants para o user do dbt/Airflow
-GRANT ALL ON SCHEMA meuorgao_silver TO govhub;
-GRANT ALL ON SCHEMA meuorgao_gold TO govhub;
+-- Grants para o usuário de execução do dbt/Airflow no ambiente
+GRANT ALL ON SCHEMA meuorgao_silver TO <usuario_pipeline>;
+GRANT ALL ON SCHEMA meuorgao_gold TO <usuario_pipeline>;
 ```
 
-### 3. Criar Bucket MinIO
+### 3. Criar área de dados brutos, se aplicável
 
 ```bash
 mc mb govhub/bronze-meuorgao
@@ -90,18 +90,19 @@ models:
 
 ### 5. Criar DAGs
 
-Seguir padrão de 3 passos (extract → load → trigger dbt):
+Crie DAGs em `airflow_lappis/dags/data_ingest/<origem>/` e reaproveite clientes/helpers existentes:
 
 ```python
-# airflow/dags/ingestao_meuorgao_fonte1.py
-with DAG("ingestao_meuorgao_fonte1", ...):
-    extract >> load >> trigger_dbt
+# airflow_lappis/dags/data_ingest/meuorgao/meuorgao_fonte1_ingest_dag.py
+@dag(...)
+def meuorgao_fonte1_ingest_dag():
+    ...
 ```
 
 ### 6. Criar Models
 
 ```sql
--- dbt/models/silver/meuorgao_entidade.sql
+-- airflow_lappis/dags/dbt/<projeto>/models/<dominio>_dbt/silver/meuorgao_entidade.sql
 {{ config(materialized='table', schema='meuorgao_silver') }}
 
 SELECT ...
@@ -109,7 +110,7 @@ FROM {{ source('bronze', 'meuorgao_fonte1_raw') }}
 ```
 
 ```sql
--- dbt/models/gold/meuorgao_fato.sql
+-- airflow_lappis/dags/dbt/<projeto>/models/<dominio>_dbt/gold/meuorgao_fato.sql
 {{ config(materialized='table', schema='meuorgao_gold') }}
 
 SELECT ...

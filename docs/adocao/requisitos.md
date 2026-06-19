@@ -6,6 +6,20 @@ Pré-requisitos de infraestrutura e equipe para implantar o GovHub BR no seu ór
 
 Esta seção é voltada para **equipes de TI do governo** que desejam implantar o GovHub para integrar dados do seu órgão ou contexto.
 
+## Avaliação Inicial
+
+Antes de iniciar o deploy, faça um diagnóstico simples da maturidade de dados do órgão. Essa etapa evita começar pela infraestrutura sem clareza sobre fontes, donos, restrições e casos de uso.
+
+| Frente | Perguntas orientadoras |
+| --- | --- |
+| Inventário de sistemas | Quais sistemas serão integrados? Há API, banco, arquivo ou extração manual? |
+| Qualidade dos dados | Existem duplicidades, campos obrigatórios ausentes, códigos divergentes ou bases desatualizadas? |
+| Acesso e segurança | A fonte exige token, certificado digital, VPN, liberação formal ou tratamento LGPD? |
+| Casos de uso | Quais decisões ou painéis justificam a integração inicial? |
+| Responsáveis | Quem conhece a regra de negócio, quem opera a fonte e quem aprova acesso? |
+
+Comece por 1 ou 2 fontes públicas ou de menor risco. Fontes com certificado digital, dados pessoais ou dados financeiros detalhados devem entrar depois que o fluxo de segurança e governança estiver acordado.
+
 ## Infraestrutura Mínima
 
 ### Cluster Kubernetes
@@ -22,7 +36,7 @@ Esta seção é voltada para **equipes de TI do governo** que desejam implantar 
 
 | Componente | Necessário para | Alternativa |
 |------------|----------------|-------------|
-| Kubernetes | Runtime de todos os serviços | — |
+| Kubernetes | Runtime dos serviços do ambiente adotado | — |
 | Helm 3 | Deploy dos charts | — |
 | Git | Versionamento e GitOps | — |
 | Certificados TLS | HTTPS em produção | Let's Encrypt |
@@ -62,6 +76,17 @@ Antes de iniciar o deploy, defina:
 3. **Modelo de fork**: fork leve (schemas PG) vs. instância separada
 4. **Política de acesso**: quem verá quais dados
 5. **Ambiente**: preprod + prod ou apenas prod
+
+## Estratégia de Adoção
+
+Para reduzir risco, a adoção deve ser incremental:
+
+| Etapa | Objetivo | Resultado esperado |
+| --- | --- | --- |
+| Prova de conceito | Validar stack, acesso e fluxo básico | Uma fonte simples ingerida e consultável |
+| Piloto | Atender um caso de uso real | DAG, modelos dbt e dashboard revisados por usuários |
+| Expansão | Adicionar fontes e domínios relacionados | Padrões reutilizados, governança e observabilidade amadurecidas |
+| Operação contínua | Manter execução confiável | Rotina de PRs, monitoramento, backups e gestão de acesso |
 
 ## Checklist Pré-Deploy
 

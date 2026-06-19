@@ -9,6 +9,9 @@ Passo a passo para o primeiro deploy do GovHub BR no seu cluster.
 - `kubectl`, `helm`, `argocd` CLI instalados e configurados
 - Acesso ao cluster confirmado (`kubectl get nodes`)
 
+!!! tip "Comece pequeno"
+    Para o primeiro deploy, valide a plataforma com uma fonte aberta e um caso de uso simples. A expansão para fontes com certificado digital, dados sensíveis ou integrações específicas deve acontecer depois que secrets, acessos, logs e revisão de PR estiverem funcionando.
+
 ## Visão Geral do Deploy
 
 ```mermaid
@@ -18,6 +21,14 @@ graph LR
     C --> D[4. Verificar serviços]
     D --> E[5. Configurar acesso]
 ```
+
+O deploy técnico é só uma parte da adoção. Em paralelo, mantenha três trilhas claras:
+
+| Trilha | O que validar |
+| --- | --- |
+| Dados | fonte piloto, chaves de integração, qualidade mínima e responsável de negócio |
+| Plataforma | cluster, secrets, banco, Airflow, dbt, Superset e observabilidade básica |
+| Operação | fluxo de PR, revisão de segurança, backups, acessos e rotina de suporte |
 
 ## 1. Fork do Repositório de Infra
 

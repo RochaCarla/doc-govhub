@@ -4,7 +4,7 @@ Configuração do ambiente de desenvolvimento local do GovHub BR.
 
 ## Pré-requisitos
 
-- Docker e Docker Compose
+- Docker com o plugin Docker Compose
 - Make
 - Python 3.11+
 - Git (com GPG configurado — ver [Git Workflow](git-workflow.md))
@@ -38,7 +38,7 @@ Configurar conforme [guia de instalação](https://gov-hub.io/govhub/documentaca
 ### 4. Subir os serviços
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ## Serviços Locais
@@ -46,8 +46,11 @@ docker-compose up -d
 | Serviço | URL | Credenciais padrão |
 |---------|-----|-------------------|
 | Airflow | http://localhost:8080 | airflow / airflow |
-| Jupyter | http://localhost:8888 | Token no terminal |
+| Jupyter | http://localhost:8888 | Sem autenticação local |
 | Superset | http://localhost:8088 | admin / admin |
+
+!!! warning "Apenas local"
+    Essas credenciais são padrões de desenvolvimento. Não use esses valores em staging, produção ou ambientes compartilhados.
 
 ## Comandos do Makefile
 
@@ -61,17 +64,17 @@ docker-compose up -d
 
 ## Verificação
 
-Após `docker-compose up -d`, verifique:
+Após `docker compose up -d`, verifique:
 
 ```bash
 # Todos os containers rodando
-docker-compose ps
+docker compose ps
 
 # Airflow saudável
 curl http://localhost:8080/health
 
-# MinIO acessível
-curl http://localhost:9000/minio/health/live
+# PostgreSQL saudável
+docker compose ps postgres
 ```
 
 ## Troubleshooting

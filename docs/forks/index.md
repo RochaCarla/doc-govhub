@@ -54,7 +54,7 @@ cd data-application-<fork>
 make setup
 
 # Subir serviços
-docker-compose up -d
+docker compose up -d
 
 # Acessar
 # Airflow:  http://localhost:8080

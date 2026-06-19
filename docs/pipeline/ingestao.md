@@ -1,135 +1,102 @@
 # Ingestão de Dados
 
-Documentação das fontes de dados governamentais integradas pelo GovHub BR.
+Esta página resume como as fontes governamentais entram no pipeline do GovHub BR. A fonte de verdade do código é o repositório `data-application-gov-hub`, especialmente `airflow_lappis/dags/data_ingest/`, `airflow_lappis/plugins/` e `airflow_lappis/helpers/`.
 
-## Fontes
+## Organização por origem
 
-| Sistema | Domínio | Método | Frequência |
-|---------|---------|--------|-----------|
-| TransfereGov | Transferências voluntárias | API REST | Diária |
-| Siape | Pessoal civil e militar | Certificado digital | Semanal |
-| Siafi | Administração financeira | API + certificado | Diária |
-| ComprasGov | Compras públicas | API REST | Diária |
-| Siorg | Estrutura organizacional | API REST | Semanal |
-
-## TransfereGov
-
-**Domínio**: Convênios e transferências voluntárias da União.
-
-| Aspecto | Detalhe |
-|---------|---------|
-| URL base | `https://api.transferegov.gov.br/` |
-| Autenticação | API Key |
-| Formato | JSON |
-| Paginação | Offset-based |
-| Rate limit | A verificar |
-
-**Dados coletados**:
-
-- Programas de transferência
-- Convênios celebrados
-- Valores transferidos
-- Órgãos concedentes e convenentes
-- Status e situação
-
-## Siape
-
-**Domínio**: Sistema Integrado de Administração de Pessoal.
-
-| Aspecto | Detalhe |
-|---------|---------|
-| Acesso | Certificado digital (e-CPF/e-CNPJ) |
-| Formato | CSV |
-| Volume | Grande (milhões de registros) |
-| Sensibilidade | Dados pessoais — anonimizar |
-
-**Dados coletados**:
-
-- Quantitativo de servidores por órgão
-- Distribuição por cargo/carreira
-- Indicadores de pessoal (agregados)
-
-!!! warning "Dados Sensíveis"
-    Dados do Siape contêm informações pessoais. A ingestão deve
-    anonimizar/agregar antes de armazenar na camada Silver.
-
-## Siafi
-
-**Domínio**: Sistema Integrado de Administração Financeira.
-
-| Aspecto | Detalhe |
-|---------|---------|
-| Acesso | API + certificado |
-| Formato | JSON |
-| Domínio | Execução orçamentária e financeira |
-
-**Dados coletados**:
-
-- Execução orçamentária
-- Empenhos, liquidações, pagamentos
-- Dotação por órgão/programa
-
-## ComprasGov
-
-**Domínio**: Portal de compras do governo federal.
-
-| Aspecto | Detalhe |
-|---------|---------|
-| URL base | `https://compras.dados.gov.br/` |
-| Autenticação | Aberta (dados públicos) |
-| Formato | JSON / CSV |
-
-**Dados coletados**:
-
-- Contratos vigentes
-- Licitações
-- Atas de registro de preço
-- Fornecedores
-
-## Siorg
-
-**Domínio**: Sistema de Informações Organizacionais.
-
-| Aspecto | Detalhe |
-|---------|---------|
-| URL base | `https://siorg.gov.br/` |
-| Autenticação | Aberta |
-| Formato | JSON |
-
-**Dados coletados**:
-
-- Estrutura organizacional (órgãos, unidades)
-- Hierarquia administrativa
-- Competências e atribuições
-
-## Padrões de Ingestão
-
-### Idempotência
-
-Todas as DAGs são idempotentes — re-execuções não duplicam dados:
-
-```python
-# Padrão: particionamento por data
-output_path = f"bronze/{source}/{execution_date}/data.json"
-# MinIO overwrite = True (mesmo path = mesma execução)
+```text
+airflow_lappis/dags/data_ingest/
+  compras_gov/
+  dados_abertos/
+  ibge/
+  ipea_pro/
+  pncp/
+  sgac/
+  siafi/
+  siape/
+  siconv/
+  siorg/
+  sisbolsas/
+  tesouro_gerencial/
+  transfere_gov/
+  transferegov_emendas/
 ```
 
-### Tratamento de Erros
+Os clientes de API e integrações ficam em `airflow_lappis/plugins/`, por exemplo `cliente_contratos.py`, `cliente_siafi.py`, `cliente_siape.py`, `cliente_siorg.py`, `cliente_pncp.py` e `cliente_postgres.py`.
 
-```python
-default_args = {
-    "retries": 3,
-    "retry_delay": timedelta(minutes=5),
-    "on_failure_callback": alert_on_failure,
+## Fontes documentadas
+
+| Origem | Caminho principal | Observação |
+| --- | --- | --- |
+| ComprasGov | `data_ingest/compras_gov/` | contratos, faturas, empenhos, cronogramas e terceirizados |
+| SIAFI | `data_ingest/siafi/` e `data_ingest/tesouro_gerencial/` | notas, empenhos e arquivos do Tesouro Gerencial |
+| SIAPE | `data_ingest/siape/` | dados de pessoal; exige cuidado com dados sensíveis |
+| SIORG | `data_ingest/siorg/` | estrutura organizacional, unidades, cargos e funções |
+| TransfereGov | `data_ingest/transfere_gov/` | programas, planos de ação e programação financeira |
+| TransfereGov Emendas | `data_ingest/transferegov_emendas/` | recortes específicos de emendas e planos especiais |
+| PNCP | `data_ingest/pncp/` | licitações e itens/resultados |
+| Dados Abertos Legislativo | `data_ingest/dados_abertos/` | deputados, senadores, partidos e histórico parlamentar |
+| IBGE | `data_ingest/ibge/` | recortes específicos usados pelo projeto |
+| SisBolsas, SGAC, Ipea Pro | pastas dedicadas | integrações institucionais específicas |
+
+## Fluxo comum
+
+Nem toda DAG segue exatamente os mesmos passos, mas o desenho recorrente é:
+
+1. Ler configuração do Airflow (`airflow_orgao`, `airflow_variables`, `dynamic_schedules`).
+2. Chamar cliente de API, arquivo, e-mail ou banco externo em `plugins/`.
+3. Validar retorno e registrar logs com volume processado.
+4. Inserir ou atualizar dados no PostgreSQL via `ClientPostgresDB`.
+5. Quando necessário, disparar DAGs dependentes ou deixar o Cosmos/dbt transformar as camadas analíticas.
+
+## Configuração por órgão
+
+O desenvolvimento local usa `airflow_orgao` para selecionar o órgão alvo e `airflow_variables` para mapear parâmetros por órgão, como códigos de UG.
+
+```json
+{
+  "ipea": {
+    "codigos_ug": [113601, 113602]
+  },
+  "unb": {
+    "codigos_ug": [154040]
+  }
 }
 ```
 
-### Certificados
+Essas variáveis são configuradas pelo `make dev` no ambiente local.
 
-Certificados digitais (Siape, Siafi) são gerenciados como Kubernetes Secrets:
+## Persistência
 
-```bash
-kubectl -n airflow create secret generic siape-cert \
-    --from-file=cert.pem=./certificado.pem \
-    --from-file=key.pem=./chave.pem
+O padrão atual usa PostgreSQL como destino principal das tabelas ingeridas. Use sempre:
+
+```python
+from postgres_helpers import get_postgres_conn
+from cliente_postgres import ClientPostgresDB
+
+db = ClientPostgresDB(get_postgres_conn())
 ```
+
+Quando a DAG pertencer a um domínio com conexão própria, passe o `conn_id` explicitamente, como `get_postgres_conn("postgres_mir")`.
+
+## Dados sensíveis
+
+Fontes como SIAPE e SIAFI podem conter dados pessoais, financeiros ou funcionais sensíveis. Para essas fontes:
+
+- não incluir dados reais em exemplos, fixtures ou prints;
+- evitar logs com identificadores pessoais;
+- documentar restrições de acesso;
+- consultar [Segurança](../governanca/seguranca.md) e [Controle de Acesso](../governanca/acesso.md) antes de expor modelos finais.
+
+## Checklist para nova ingestão
+
+- [ ] Pasta correta em `data_ingest/<origem>/`
+- [ ] Cliente reutilizado ou criado em `plugins/cliente_<origem>.py`
+- [ ] Helper existente reaproveitado quando aplicável
+- [ ] Schedule via `get_dynamic_schedule()`
+- [ ] Variáveis obrigatórias validadas antes do uso
+- [ ] Conexão PostgreSQL via `get_postgres_conn()`
+- [ ] Logs com início, volume processado, destino e conclusão
+- [ ] Tratamento de retorno vazio ou formato inesperado
+- [ ] Teste local com `airflow dags test`
+- [ ] Documentação/dbt atualizados quando a mudança criar novo dado analítico

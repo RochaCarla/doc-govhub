@@ -37,7 +37,7 @@ Conectados ao schema `gold` do PostgreSQL:
 
 ```
 Database Name: GovHub Analytics
-SQLAlchemy URI: postgresql://govhub:<password>@postgres:5432/govhub
+SQLAlchemy URI: postgresql://postgres_dw:<password>@postgres:5432/data_warehouse
 ```
 
 ## Permissões

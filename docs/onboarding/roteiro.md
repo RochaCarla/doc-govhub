@@ -7,7 +7,7 @@ Guia para novos contribuidores do GovHub BR.
 1. **Ler** o [README do projeto](https://github.com/GovHub-br/data-application-gov-hub)
 2. **Clonar** o repositório
 3. **Configurar** o ambiente local ([Setup Local](setup-local.md))
-4. **Subir** os serviços (`docker-compose up -d`)
+4. **Subir** os serviços (`docker compose up -d`)
 5. **Explorar** Airflow, Superset e Jupyter nos links locais
 
 ## Primeira Semana
